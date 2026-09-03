@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Survival — V1.3</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="top">
+      <div class="panel">WAVE <b id="wave">1</b> <span id="enemyCount" class="muted"></span></div>
+      <div class="panel">SCORE <b id="score">0</b></div>
+      <div class="panel">XP <b id="xp">0</b></div>
+    </div>
+  </div>
+
+  <div id="healthWrap" class="hidden">
+    <div class="label"><span>HULL</span><span id="hpText">100 / 100</span></div>
+    <div class="bar"><div id="hpFill" class="fill"></div></div>
+    <div class="label strength-label"><span>SHIP STRENGTH</span><span id="strengthText">100 / 100</span></div>
+    <div class="bar"><div id="strengthFill" class="strengthFill"></div></div>
+  </div>
+
+  <div id="help" class="hidden">
+    WASD / Arrow Keys · Mouse to aim · Click / Space to fire · Shift to dash · Strength absorbs damage first
+  </div>
+
+  <div id="overlay">
+    <div class="card">
+      <div class="badge">SPACE SURVIVAL · V1.3</div>
+      <h1 class="title" id="title">SPACE SURVIVAL</h1>
+      <p class="subtitle" id="subtitle">
+        Survive increasingly dangerous enemy waves, collect XP, and upgrade your ship between battles.
+        Ship strength absorbs hits before your hull takes damage.
+      </p>
+      <button id="startBtn" type="button">START MISSION</button>
+    </div>
+  </div>
+
+  <div id="upgrade">
+    <div class="upgrade-card">
+      <div class="badge">WAVE CLEARED</div>
+      <h1 class="title upgrade-title">CHOOSE AN UPGRADE</h1>
+      <p class="subtitle">Your next wave will be stronger.</p>
+      <div class="choices" id="choices"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
