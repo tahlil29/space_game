@@ -537,7 +537,9 @@ function drawUpgradeTargets() {
 function updateHud() {
   document.getElementById("wave").textContent = String(wave);
   document.getElementById("enemyCount").textContent =
-    `(${Math.max(0, enemiesToSpawn - spawned) + enemies.length} left)`;
+    gameState === "upgradeSelect"
+      ? "(pick a boost)"
+      : `(${Math.max(0, enemiesToSpawn - spawned) + enemies.length} left)`;
   document.getElementById("score").textContent = String(score);
   document.getElementById("xp").textContent = String(xp);
   document.getElementById("hpText").textContent =
