@@ -185,6 +185,17 @@ function addXP(px, py) {
   powerups.push({ x: px, y: py, r: 7, life: 12 });
 }
 
+/** Wave ended — award leftover XP orbs and remove stale objects before the upgrade screen. */
+function settleWavePickups() {
+  for (const p of powerups) {
+    xp += 1;
+    score += 2;
+  }
+  powerups = [];
+  bullets = [];
+  particles = [];
+}
+
 function dash() {
   if (dashCD > 0) return;
   const dx =
