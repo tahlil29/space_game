@@ -3,50 +3,141 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Space Survival — V1.3.3</title>
+  <title>Space Survival</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
   <canvas id="game"></canvas>
 
-  <div id="hud" class="hidden">
-    <div class="top">
-      <div class="panel">WAVE <b id="wave">1</b> <span id="enemyCount" class="muted"></span></div>
-      <div class="panel">SCORE <b id="score">0</b></div>
-      <div class="panel">XP <b id="xp">0</b></div>
+  <!-- In-game HUD -->
+  <div id="hud" class="screen-hidden">
+    <div class="hud-top">
+      <div class="hud-panels">
+        <div class="panel">WAVE <b id="wave">1</b> <span id="enemyCount" class="muted"></span></div>
+        <div class="panel">SCORE <b id="score">0</b></div>
+        <div class="panel">XP <b id="xp">0</b></div>
+      </div>
+      <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause">⏸</button>
     </div>
   </div>
 
-  <div id="healthWrap" class="hidden">
+  <div id="healthWrap" class="screen-hidden">
     <div class="label"><span>HULL</span><span id="hpText">100 / 100</span></div>
     <div class="bar"><div id="hpFill" class="fill"></div></div>
     <div class="label strength-label"><span>SHIP STRENGTH</span><span id="strengthText">100 / 100</span></div>
     <div class="bar"><div id="strengthFill" class="strengthFill"></div></div>
   </div>
 
-  <div id="help" class="hidden">
-    WASD / Arrow Keys · Mouse to aim · Click / Space to fire · Shift to dash · Strength absorbs damage first
+  <div id="help" class="screen-hidden">
+    WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause
   </div>
 
-  <div id="overlay">
-    <div class="card">
-      <div class="badge">SPACE SURVIVAL · V1.3.2</div>
-      <h1 class="title" id="title">SPACE SURVIVAL</h1>
-      <p class="subtitle" id="subtitle">
-        Survive increasingly dangerous enemy waves, collect XP, and upgrade your ship between battles.
-        Ship strength absorbs hits before your hull takes damage.
-      </p>
-      <button id="startBtn" type="button">START MISSION</button>
+  <!-- Home -->
+  <div id="screen-home" class="screen active">
+    <div class="screen-bg"></div>
+    <div class="menu-card home-card">
+      <div class="badge">ARCADE SHOOTER · V2.0</div>
+      <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
+      <p class="subtitle">Fight enemy waves, upgrade your ship, and survive the void.</p>
+      <div class="btn-stack">
+        <button id="btnPlay" class="btn btn-primary" type="button">PLAY</button>
+        <button id="btnHomeSettings" class="btn btn-secondary" type="button">SETTINGS</button>
+      </div>
     </div>
   </div>
 
-  <div id="upgrade">
-    <div class="upgrade-card">
-      <div class="badge">WAVE CLEARED</div>
-      <h1 class="title upgrade-title">CHOOSE AN UPGRADE</h1>
-      <p class="subtitle">Your next wave will be stronger.</p>
+  <!-- Settings (shared) -->
+  <div id="screen-settings" class="screen">
+    <div class="screen-bg"></div>
+    <div class="menu-card">
+      <div class="badge">OPTIONS</div>
+      <h2 class="title-sm">SETTINGS</h2>
+      <div class="settings-list">
+        <label class="setting-row">
+          <div>
+            <span class="setting-name">Music</span>
+            <span class="setting-desc">Ambient space soundtrack</span>
+          </div>
+          <input id="toggleMusic" class="toggle" type="checkbox" checked />
+        </label>
+        <label class="setting-row">
+          <div>
+            <span class="setting-name">Vibration</span>
+            <span class="setting-desc">Rumble when hitting bosses</span>
+          </div>
+          <input id="toggleVibration" class="toggle" type="checkbox" checked />
+        </label>
+      </div>
+      <button id="btnSettingsBack" class="btn btn-secondary" type="button">BACK</button>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="screen-pause" class="screen">
+    <div class="screen-bg dim"></div>
+    <div class="menu-card">
+      <div class="badge">MISSION PAUSED</div>
+      <h2 class="title-sm">PAUSED</h2>
+      <div class="btn-stack">
+        <button id="btnResume" class="btn btn-primary" type="button">RESUME</button>
+        <button id="btnRestart" class="btn btn-secondary" type="button">RESTART</button>
+        <button id="btnPauseSettings" class="btn btn-secondary" type="button">SETTINGS</button>
+        <button id="btnMenu" class="btn btn-ghost" type="button">BACK TO MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wave complete -->
+  <div id="screen-wave" class="screen">
+    <div class="screen-bg dim"></div>
+    <div class="menu-card wave-card">
+      <div class="badge success">WAVE CLEARED</div>
+      <h2 class="title-sm" id="waveClearTitle">WAVE 1 COMPLETE</h2>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">SCORE</span>
+          <span class="stat-value" id="waveScore">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">XP</span>
+          <span class="stat-value" id="waveXp">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">HULL</span>
+          <span class="stat-value" id="waveHull">100%</span>
+        </div>
+      </div>
+      <p class="subtitle">Choose an upgrade before the next wave.</p>
       <div class="choices" id="choices"></div>
+    </div>
+  </div>
+
+  <!-- Game over -->
+  <div id="screen-gameover" class="screen">
+    <div class="screen-bg dim danger"></div>
+    <div class="menu-card gameover-card">
+      <div class="badge danger">MISSION FAILED</div>
+      <h2 class="title-sm">GAME OVER</h2>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">WAVE</span>
+          <span class="stat-value" id="goWave">1</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">SCORE</span>
+          <span class="stat-value" id="goScore">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">XP</span>
+          <span class="stat-value" id="goXp">0</span>
+        </div>
+      </div>
+      <p class="subtitle" id="goMessage">Your ship was destroyed.</p>
+      <div class="btn-stack">
+        <button id="btnPlayAgain" class="btn btn-primary" type="button">PLAY AGAIN</button>
+        <button id="btnGoMenu" class="btn btn-ghost" type="button">MAIN MENU</button>
+      </div>
     </div>
   </div>
 

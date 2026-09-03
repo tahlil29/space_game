@@ -1,6 +1,6 @@
 # Space Survival
 
-A browser arena shooter: survive enemy waves, collect XP, and pick ship upgrades between battles.
+A browser arena shooter with full menu flow: home screen, settings, pause menu, wave-complete upgrades, and game over.
 
 ## Run locally
 
@@ -9,7 +9,15 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (default is configured for port `43127`).
+Open the URL Vite prints (port `43127`).
+
+## Screens
+
+- **Home** — Play and Settings
+- **Settings** — Music and vibration toggles (saved to localStorage)
+- **Pause** (Esc or pause button) — Resume, Restart, Settings, Back to Menu
+- **Wave complete** — Stats + upgrade choices
+- **Game over** — Final stats, Play Again, Main Menu
 
 ## Controls
 
@@ -17,7 +25,8 @@ Open the URL Vite prints (default is configured for port `43127`).
 - **Mouse** — aim
 - **Click / Space** — fire
 - **Shift** — dash
+- **Esc** — pause
 
-## Combat note (V1.3)
+## Bosses
 
-Ship **strength absorbs damage first**. Hull only takes damage after strength is depleted. Contact damage is capped and applies a short knockback/hit cooldown so enemy piles no longer melt both bars at once.
+Tank enemies and wave bosses vibrate your device on hit (when vibration is enabled in Settings). Bosses spawn mid-wave from wave 2 onward.
