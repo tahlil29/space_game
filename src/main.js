@@ -55,8 +55,7 @@ function showScreen(name) {
   Object.entries(screens).forEach(([key, el]) => {
     el.classList.toggle("active", key === name);
   });
-  const menuOpen = name !== "playing";
-  document.body.classList.toggle("menu-open", menuOpen);
+  document.body.classList.toggle("menu-open", Boolean(name));
 }
 
 function showHud(visible) {
