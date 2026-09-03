@@ -14,13 +14,13 @@ const screens = {
   home: document.getElementById("screen-home"),
   settings: document.getElementById("screen-settings"),
   pause: document.getElementById("screen-pause"),
-  wave: document.getElementById("screen-wave"),
   gameover: document.getElementById("screen-gameover"),
 };
 
 const hud = document.getElementById("hud");
 const healthWrap = document.getElementById("healthWrap");
 const help = document.getElementById("help");
+const upgradeBanner = document.getElementById("upgradeBanner");
 
 let W;
 let H;
@@ -47,6 +47,12 @@ let shootCD;
 let dashCD;
 let animId;
 let bossSpawned;
+let upgradeTargets;
+const UPGRADE_HITS = 6;
+
+function isActiveGameplay() {
+  return gameState === "playing" || gameState === "upgradeSelect";
+}
 
 settings.load();
 settings.syncToggles();
@@ -86,11 +92,11 @@ resize();
 addEventListener("keydown", (e) => {
   if (e.code === "Escape") {
     e.preventDefault();
-    if (gameState === "playing") pauseGame();
+    if (gameState === "playing" || gameState === "upgradeSelect") pauseGame();
     else if (gameState === "paused") resumeGame();
     return;
   }
-  if (gameState !== "playing") return;
+  if (!isActiveGameplay()) return;
   keys[e.key.toLowerCase()] = true;
   if (e.code === "Space") {
     e.preventDefault();
@@ -109,7 +115,7 @@ canvas.addEventListener("mousemove", (e) => {
   mouse.y = e.clientY;
 });
 canvas.addEventListener("mousedown", () => {
-  if (gameState === "playing") mouse.down = true;
+  if (isActiveGameplay()) mouse.down = true;
 });
 addEventListener("mouseup", () => {
   mouse.down = false;
@@ -144,6 +150,7 @@ function reset() {
   shootCD = 0;
   dashCD = 0;
   bossSpawned = false;
+  upgradeTargets = [];
 }
 
 function startGame() {
@@ -157,7 +164,7 @@ function startGame() {
 }
 
 function pauseGame() {
-  if (gameState !== "playing") return;
+  if (!isActiveGameplay()) return;
   gameState = "paused";
   mouse.down = false;
   showScreen("pause");
@@ -165,7 +172,7 @@ function pauseGame() {
 
 function resumeGame() {
   if (gameState !== "paused") return;
-  gameState = "playing";
+  gameState = upgradeTargets.length > 0 ? "upgradeSelect" : "playing";
   showScreen(null);
   last = performance.now();
 }
@@ -173,8 +180,10 @@ function resumeGame() {
 function goHome() {
   gameState = "home";
   betweenWaves = false;
+  upgradeTargets = [];
   mouse.down = false;
   showHud(false);
+  upgradeBanner.classList.add("screen-hidden");
   showScreen("home");
 }
 
@@ -278,7 +287,7 @@ function settleWavePickups() {
 }
 
 function dash() {
-  if (dashCD > 0 || gameState !== "playing") return;
+  if (dashCD > 0 || !isActiveGameplay()) return;
   const dx =
     (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
   const dy =
@@ -355,55 +364,174 @@ function isBoss(kind) {
 }
 
 const UPGRADES = [
-  { icon: "DMG", name: "OVERCHARGE", desc: "+1 weapon damage", apply: (p) => { p.damage++; } },
-  { icon: "SPD", name: "RAPID FIRE", desc: "18% faster firing", apply: (p) => { p.fireRate = Math.max(0.07, p.fireRate * 0.82); } },
-  { icon: "FIX", name: "REPAIR", desc: "Restore 45 hull + 20 strength", apply: (p) => {
+  { icon: "DMG", name: "OVERCHARGE", desc: "+1 damage", color: "#ff6b8a", apply: (p) => { p.damage++; } },
+  { icon: "SPD", name: "RAPID FIRE", desc: "Faster firing", color: "#66e0ff", apply: (p) => { p.fireRate = Math.max(0.07, p.fireRate * 0.82); } },
+  { icon: "FIX", name: "REPAIR", desc: "+45 hull, +20 strength", color: "#7dffb8", apply: (p) => {
     p.hp = Math.min(p.maxHp, p.hp + 45);
     p.strength = Math.min(p.maxStrength, p.strength + 20);
   }},
-  { icon: "HULL", name: "REINFORCE", desc: "+25 max hull + 15 max strength", apply: (p) => {
+  { icon: "HULL", name: "REINFORCE", desc: "+25 hull, +15 strength", color: "#ffb05a", apply: (p) => {
     p.maxHp += 25; p.hp += 25; p.maxStrength += 15; p.strength += 15;
   }},
-  { icon: "ARM", name: "ARMOR CORE", desc: "+30 maximum strength", apply: (p) => {
+  { icon: "ARM", name: "ARMOR CORE", desc: "+30 max strength", color: "#9b7bff", apply: (p) => {
     p.maxStrength += 30; p.strength += 30;
   }},
-  { icon: "BOOST", name: "THRUST", desc: "+15% movement speed", apply: (p) => { p.speed *= 1.15; } },
+  { icon: "BOOST", name: "THRUST", desc: "+15% speed", color: "#7bc8ff", apply: (p) => { p.speed *= 1.15; } },
 ];
 
-function showWaveComplete() {
+function spawnUpgradeTarget(upgrade) {
+  const side = Math.floor(Math.random() * 4);
+  const speed = 50 + Math.random() * 40;
+  let x;
+  let y;
+  let vx;
+  let vy;
+
+  if (side === 0) {
+    x = -36;
+    y = 80 + Math.random() * (H - 160);
+    vx = speed;
+    vy = (Math.random() - 0.5) * speed * 0.7;
+  } else if (side === 1) {
+    x = W + 36;
+    y = 80 + Math.random() * (H - 160);
+    vx = -speed;
+    vy = (Math.random() - 0.5) * speed * 0.7;
+  } else if (side === 2) {
+    x = 80 + Math.random() * (W - 160);
+    y = -36;
+    vx = (Math.random() - 0.5) * speed * 0.7;
+    vy = speed;
+  } else {
+    x = 80 + Math.random() * (W - 160);
+    y = H + 36;
+    vx = (Math.random() - 0.5) * speed * 0.7;
+    vy = -speed;
+  }
+
+  upgradeTargets.push({
+    x,
+    y,
+    vx,
+    vy,
+    r: 24,
+    hp: UPGRADE_HITS,
+    maxHp: UPGRADE_HITS,
+    upgrade,
+    pulse: Math.random() * Math.PI * 2,
+  });
+}
+
+function showUpgradeFlash() {
+  const el = document.createElement("div");
+  el.className = "upgrade-flash";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 650);
+}
+
+function collectUpgrade(target) {
+  target.upgrade.apply(player);
+  burst(target.x, target.y, 24, target.upgrade.color);
+  playExplosion();
+  showUpgradeFlash();
+  upgradeTargets = [];
+  betweenWaves = false;
+  gameState = "playing";
+  upgradeBanner.classList.add("screen-hidden");
+  document.getElementById("upgradeBannerText").textContent =
+    "Shoot a glowing target — 6 hits to unlock the boost!";
+  wave++;
+  enemiesToSpawn = 5 + wave * 3;
+  spawned = 0;
+  spawnTimer = 1.8;
+  bossSpawned = false;
+  bullets = [];
+}
+
+function startUpgradePhase() {
   betweenWaves = true;
-  gameState = "waveComplete";
+  gameState = "upgradeSelect";
   settleWavePickups();
 
-  document.getElementById("waveClearTitle").textContent = `WAVE ${wave} COMPLETE`;
-  document.getElementById("waveScore").textContent = String(score);
-  document.getElementById("waveXp").textContent = String(xp);
-  document.getElementById("waveHull").textContent =
-    `${Math.max(0, Math.round((player.hp / player.maxHp) * 100))}%`;
-
+  upgradeTargets = [];
   const picks = [...UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
-  const choices = document.getElementById("choices");
-  choices.innerHTML = "";
-  picks.forEach((u) => {
-    const d = document.createElement("div");
-    d.className = "choice";
-    d.innerHTML = `<div class="icon">${u.icon}</div><h3>${u.name}</h3><p>${u.desc}</p>`;
-    d.onclick = () => {
-      u.apply(player);
-      wave++;
-      enemiesToSpawn = 5 + wave * 3;
-      spawned = 0;
-      spawnTimer = 1.8;
-      bossSpawned = false;
-      betweenWaves = false;
-      gameState = "playing";
-      showScreen(null);
-      last = performance.now();
-    };
-    choices.appendChild(d);
-  });
+  picks.forEach((u) => spawnUpgradeTarget(u));
 
-  showScreen("wave");
+  document.getElementById("upgradeBannerText").textContent =
+    `Wave ${wave} cleared! Shoot a target (${UPGRADE_HITS} hits) to pick your boost.`;
+  upgradeBanner.classList.remove("screen-hidden");
+  document.getElementById("enemyCount").textContent = "(pick a boost)";
+}
+
+function updateUpgradeTargets(dt) {
+  for (const t of upgradeTargets) {
+    t.x += t.vx * dt;
+    t.y += t.vy * dt;
+    t.pulse += dt * 4;
+
+    if (t.x < t.r + 20) {
+      t.x = t.r + 20;
+      t.vx = Math.abs(t.vx);
+    } else if (t.x > W - t.r - 20) {
+      t.x = W - t.r - 20;
+      t.vx = -Math.abs(t.vx);
+    }
+    if (t.y < t.r + 20) {
+      t.y = t.r + 20;
+      t.vy = Math.abs(t.vy);
+    } else if (t.y > H - t.r - 20) {
+      t.y = H - t.r - 20;
+      t.vy = -Math.abs(t.vy);
+    }
+  }
+
+  for (let i = upgradeTargets.length - 1; i >= 0; i--) {
+    const t = upgradeTargets[i];
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      if (Math.hypot(t.x - b.x, t.y - b.y) >= t.r + b.r) continue;
+      t.hp -= 1;
+      bullets.splice(j, 1);
+      burst(b.x, b.y, 5, t.upgrade.color);
+      if (t.hp <= 0) {
+        collectUpgrade(t);
+        return;
+      }
+      break;
+    }
+  }
+}
+
+function drawUpgradeTargets() {
+  for (const t of upgradeTargets) {
+    const scale = 1 + Math.sin(t.pulse) * 0.06;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.scale(scale, scale);
+    ctx.shadowBlur = 28;
+    ctx.shadowColor = t.upgrade.color;
+    ctx.strokeStyle = t.upgrade.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, t.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `${t.upgrade.color}33`;
+    ctx.fill();
+
+    ctx.fillStyle = t.upgrade.color;
+    ctx.font = "bold 11px Orbitron, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(t.upgrade.icon, 0, -4);
+    ctx.font = "600 9px Exo 2, sans-serif";
+    ctx.fillStyle = "#eef7ff";
+    ctx.fillText(t.upgrade.name, 0, 10);
+
+    ctx.fillStyle = "#172035";
+    ctx.fillRect(-t.r, t.r + 6, t.r * 2, 5);
+    ctx.fillStyle = t.upgrade.color;
+    ctx.fillRect(-t.r, t.r + 6, t.r * 2 * (t.hp / t.maxHp), 5);
+    ctx.restore();
+  }
 }
 
 function updateHud() {
@@ -422,31 +550,7 @@ function updateHud() {
     `${Math.max(0, (player.strength / player.maxStrength) * 100)}%`;
 }
 
-function update(dt) {
-  const ax =
-    (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
-  const ay =
-    (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
-  const moveLen = Math.hypot(ax, ay) || 1;
-
-  player.x = Math.max(
-    player.r,
-    Math.min(W - player.r, player.x + (ax / moveLen) * player.speed * dt),
-  );
-  player.y = Math.max(
-    player.r,
-    Math.min(H - player.r, player.y + (ay / moveLen) * player.speed * dt),
-  );
-
-  shootCD -= dt;
-  dashCD -= dt;
-  player.inv -= dt;
-
-  if (mouse.down && shootCD <= 0) {
-    shoot();
-    shootCD = player.fireRate;
-  }
-
+function updatePlaying(dt) {
   spawnTimer -= dt;
   if (spawned < enemiesToSpawn && spawnTimer <= 0) {
     spawnEnemy();
@@ -458,15 +562,6 @@ function update(dt) {
     spawnEnemy("boss");
     bossSpawned = true;
   }
-
-  bullets.forEach((b) => {
-    b.x += b.vx * dt;
-    b.y += b.vy * dt;
-    b.life -= dt;
-  });
-  bullets = bullets.filter(
-    (b) => b.life > 0 && b.x > -50 && b.x < W + 50 && b.y > -50 && b.y < H + 50,
-  );
 
   for (const e of enemies) {
     const dx = player.x - e.x;
@@ -538,6 +633,51 @@ function update(dt) {
     }
   }
 
+  if (spawned >= enemiesToSpawn && enemies.length === 0 && !betweenWaves) {
+    startUpgradePhase();
+  }
+}
+
+function update(dt) {
+  const ax =
+    (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+  const ay =
+    (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
+  const moveLen = Math.hypot(ax, ay) || 1;
+
+  player.x = Math.max(
+    player.r,
+    Math.min(W - player.r, player.x + (ax / moveLen) * player.speed * dt),
+  );
+  player.y = Math.max(
+    player.r,
+    Math.min(H - player.r, player.y + (ay / moveLen) * player.speed * dt),
+  );
+
+  shootCD -= dt;
+  dashCD -= dt;
+  player.inv -= dt;
+
+  if (mouse.down && shootCD <= 0) {
+    shoot();
+    shootCD = player.fireRate;
+  }
+
+  bullets.forEach((b) => {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+  });
+  bullets = bullets.filter(
+    (b) => b.life > 0 && b.x > -50 && b.x < W + 50 && b.y > -50 && b.y < H + 50,
+  );
+
+  if (gameState === "upgradeSelect") {
+    updateUpgradeTargets(dt);
+  } else {
+    updatePlaying(dt);
+  }
+
   particles.forEach((p) => {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
@@ -550,10 +690,6 @@ function update(dt) {
   if (player.hp <= 0) {
     gameOver();
     return;
-  }
-
-  if (spawned >= enemiesToSpawn && enemies.length === 0 && !betweenWaves) {
-    showWaveComplete();
   }
 
   updateHud();
@@ -636,6 +772,8 @@ function draw() {
 
   if (!player) return;
 
+  if (upgradeTargets.length > 0) drawUpgradeTargets();
+
   const a = Math.atan2(mouse.y - player.y, mouse.x - player.x);
   ctx.save();
   ctx.translate(player.x, player.y);
@@ -670,7 +808,7 @@ function draw() {
 
 function loop(t) {
   const dt = Math.min((t - (last || t)) / 1000, 0.033);
-  if (gameState === "playing") {
+  if (isActiveGameplay()) {
     last = t;
     update(dt);
   }
@@ -680,6 +818,8 @@ function loop(t) {
 
 function gameOver() {
   gameState = "gameover";
+  upgradeTargets = [];
+  upgradeBanner.classList.add("screen-hidden");
   mouse.down = false;
   document.getElementById("goWave").textContent = String(wave);
   document.getElementById("goScore").textContent = String(score);

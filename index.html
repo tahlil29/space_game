@@ -30,7 +30,7 @@
   </div>
 
   <div id="help" class="screen-hidden">
-    WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause
+    WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause · Shoot targets for boosts
   </div>
 
   <!-- Home -->
@@ -88,28 +88,11 @@
     </div>
   </div>
 
-  <!-- Wave complete -->
-  <div id="screen-wave" class="screen">
-    <div class="screen-bg dim"></div>
-    <div class="menu-card wave-card">
-      <div class="badge success">WAVE CLEARED</div>
-      <h2 class="title-sm" id="waveClearTitle">WAVE 1 COMPLETE</h2>
-      <div class="stats-grid">
-        <div class="stat-box">
-          <span class="stat-label">SCORE</span>
-          <span class="stat-value" id="waveScore">0</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">XP</span>
-          <span class="stat-value" id="waveXp">0</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">HULL</span>
-          <span class="stat-value" id="waveHull">100%</span>
-        </div>
-      </div>
-      <p class="subtitle">Choose an upgrade before the next wave.</p>
-      <div class="choices" id="choices"></div>
+  <!-- Wave complete banner (shoot targets to upgrade) -->
+  <div id="upgradeBanner" class="upgrade-banner screen-hidden">
+    <div class="banner-inner">
+      <span class="badge success">WAVE CLEARED</span>
+      <span id="upgradeBannerText">Shoot a glowing target — 6 hits to unlock the boost!</span>
     </div>
   </div>
 
