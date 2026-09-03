@@ -212,16 +212,15 @@ addEventListener("keydown", (e) => {
 });
 
 /**
- * Apply contact damage correctly:
- * 1) Strength absorbs damage first (no simultaneous hull drain).
- * 2) Only overflow / empty strength damages hull.
- * 3) Cap total contact damage per frame so enemy piles don't melt both bars.
- * 4) Brief hit cooldown + knockback prevent continuous overlap spikes.
+ * Apply contact damage:
+ * - Strength absorbs hits first; hull only takes overflow once strength is gone.
+ * - Continuous DPS while touching (no long hit cooldown).
+ * - Soft swarm cap + occasional knockback prevent sudden dual-bar cliffs.
  */
 function applyContactDamage(dt) {
-  if (player.inv > 0 || player.hitCD > 0) return;
+  if (player.inv > 0) return;
 
-  let totalDamage = 0;
+  let rawDamage = 0;
   const push = { x: 0, y: 0 };
   let hits = 0;
 
@@ -231,8 +230,7 @@ function applyContactDamage(dt) {
     const dist = Math.hypot(dx, dy) || 1;
     if (dist >= e.r + player.r) continue;
 
-    // Contact DPS scaled by dt, then capped across all enemies
-    totalDamage += e.damage * dt;
+    rawDamage += e.damage;
     push.x += dx / dist;
     push.y += dy / dist;
     hits++;
@@ -240,34 +238,38 @@ function applyContactDamage(dt) {
 
   if (hits === 0) return;
 
-  // Soft cap: even with a swarm, damage stays readable instead of a sudden cliff
-  const capped = Math.min(totalDamage, 55 * dt + 8 * dt * Math.min(hits, 4));
+  const strengthRate = 0.48;
+  const hullRate = 1.08;
+  let damage = rawDamage * strengthRate * dt;
 
-  let remaining = capped;
+  // Swarm soft cap — stronger than before, but still stops instant melts
+  damage = Math.min(damage, (24 + 14 * Math.min(hits, 5)) * dt);
+
   if (player.strength > 0) {
-    const absorbed = Math.min(player.strength, remaining);
+    const absorbed = Math.min(player.strength, damage);
     player.strength -= absorbed;
-    remaining -= absorbed;
+    damage -= absorbed;
   }
 
-  if (remaining > 0) {
-    // Hull takes remaining damage only after strength is gone
-    player.hp -= remaining;
+  if (damage > 0) {
+    player.hp -= damage * (hullRate / strengthRate);
   }
 
-  // Separate the ship from the pile so damage doesn't re-apply every frame
-  const plen = Math.hypot(push.x, push.y) || 1;
-  player.x = Math.max(
-    player.r,
-    Math.min(W - player.r, player.x + (push.x / plen) * 28),
-  );
-  player.y = Math.max(
-    player.r,
-    Math.min(H - player.r, player.y + (push.y / plen) * 28),
-  );
-  player.hitCD = 0.22;
-  player.inv = 0.12;
-  burst(player.x, player.y, 6, player.strength > 0 ? "#9b7bff" : "#ff5478");
+  // Knockback only on a short timer so DPS stays steady in 1v1 contact
+  player.hitCD -= dt;
+  if (player.hitCD <= 0 && hits >= 2) {
+    const plen = Math.hypot(push.x, push.y) || 1;
+    player.x = Math.max(
+      player.r,
+      Math.min(W - player.r, player.x + (push.x / plen) * 16),
+    );
+    player.y = Math.max(
+      player.r,
+      Math.min(H - player.r, player.y + (push.y / plen) * 16),
+    );
+    player.hitCD = 0.14;
+    burst(player.x, player.y, 4, player.strength > 0 ? "#9b7bff" : "#ff5478");
+  }
 }
 
 function nextWave() {
@@ -372,7 +374,6 @@ function update(dt) {
   shootCD -= dt;
   dashCD -= dt;
   player.inv -= dt;
-  player.hitCD -= dt;
 
   if (mouse.down && shootCD <= 0) {
     shoot();
