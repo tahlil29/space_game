@@ -82,7 +82,6 @@ function reset() {
     strength: 100,
     maxStrength: 100,
     inv: 0,
-    hitCD: 0,
   };
   bullets = [];
   enemies = [];
@@ -212,27 +211,52 @@ addEventListener("keydown", (e) => {
 });
 
 /**
- * Apply contact damage:
- * - Strength absorbs hits first; hull only takes overflow once strength is gone.
- * - Continuous DPS while touching (no long hit cooldown).
- * - Soft swarm cap + occasional knockback prevent sudden dual-bar cliffs.
+ * Keep enemies outside the player hull so they cannot overlap and drain forever.
+ */
+function separateEnemiesFromPlayer() {
+  for (const e of enemies) {
+    const dx = e.x - player.x;
+    const dy = e.y - player.y;
+    const dist = Math.hypot(dx, dy) || 0.001;
+    const minDist = player.r + e.r + 6;
+
+    if (dist >= minDist) continue;
+
+    const overlap = minDist - dist;
+    const nx = dx / dist;
+    const ny = dy / dist;
+
+    e.x += nx * overlap * 0.9;
+    e.y += ny * overlap * 0.9;
+    player.x = Math.max(
+      player.r,
+      Math.min(W - player.r, player.x - nx * overlap * 0.1),
+    );
+    player.y = Math.max(
+      player.r,
+      Math.min(H - player.r, player.y - ny * overlap * 0.1),
+    );
+  }
+}
+
+/**
+ * Apply contact damage when enemies touch the hull edge (not while overlapping).
  */
 function applyContactDamage(dt) {
   if (player.inv > 0) return;
 
   let rawDamage = 0;
-  const push = { x: 0, y: 0 };
   let hits = 0;
 
   for (const e of enemies) {
     const dx = player.x - e.x;
     const dy = player.y - e.y;
     const dist = Math.hypot(dx, dy) || 1;
-    if (dist >= e.r + player.r) continue;
+    const touchDist = player.r + e.r + 10;
+
+    if (dist > touchDist) continue;
 
     rawDamage += e.damage;
-    push.x += dx / dist;
-    push.y += dy / dist;
     hits++;
   }
 
@@ -241,8 +265,6 @@ function applyContactDamage(dt) {
   const strengthRate = 0.48;
   const hullRate = 1.08;
   let damage = rawDamage * strengthRate * dt;
-
-  // Swarm soft cap — stronger than before, but still stops instant melts
   damage = Math.min(damage, (24 + 14 * Math.min(hits, 5)) * dt);
 
   if (player.strength > 0) {
@@ -255,20 +277,8 @@ function applyContactDamage(dt) {
     player.hp -= damage * (hullRate / strengthRate);
   }
 
-  // Knockback only on a short timer so DPS stays steady in 1v1 contact
-  player.hitCD -= dt;
-  if (player.hitCD <= 0 && hits >= 2) {
-    const plen = Math.hypot(push.x, push.y) || 1;
-    player.x = Math.max(
-      player.r,
-      Math.min(W - player.r, player.x + (push.x / plen) * 16),
-    );
-    player.y = Math.max(
-      player.r,
-      Math.min(H - player.r, player.y + (push.y / plen) * 16),
-    );
-    player.hitCD = 0.14;
-    burst(player.x, player.y, 4, player.strength > 0 ? "#9b7bff" : "#ff5478");
+  if (hits > 0) {
+    burst(player.x, player.y, 3, player.strength > 0 ? "#9b7bff" : "#ff5478");
   }
 }
 
@@ -400,10 +410,23 @@ function update(dt) {
     const dx = player.x - e.x;
     const dy = player.y - e.y;
     const dist = Math.hypot(dx, dy) || 1;
-    e.x += (dx / dist) * e.speed * dt;
-    e.y += (dy / dist) * e.speed * dt;
+    const minDist = player.r + e.r + 6;
+
+    if (dist > minDist + 8) {
+      e.x += (dx / dist) * e.speed * dt;
+      e.y += (dy / dist) * e.speed * dt;
+    } else if (dist > minDist) {
+      e.x += (dx / dist) * e.speed * 0.45 * dt;
+      e.y += (dy / dist) * e.speed * 0.45 * dt;
+    } else {
+      const tx = -dy / dist;
+      const ty = dx / dist;
+      e.x += tx * e.speed * 0.55 * dt;
+      e.y += ty * e.speed * 0.55 * dt;
+    }
   }
 
+  separateEnemiesFromPlayer();
   applyContactDamage(dt);
 
   for (let i = enemies.length - 1; i >= 0; i--) {
