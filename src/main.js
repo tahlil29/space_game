@@ -992,6 +992,8 @@ function draw() {
 
   if (gameState === "home" || gameState === "modes" || gameState === "map") return;
 
+  const theme = currentTheme;
+
   for (const p of powerups) {
     ctx.save();
     ctx.shadowBlur = 20;
