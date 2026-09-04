@@ -64,7 +64,14 @@ function usernameToEmail(username) {
   return `${user}@${projectId}.firebaseapp.com`;
 }
 
-function mapFirebaseError(code) {
+function mapFirebaseError(code, message = "") {
+  const msg = String(message || "");
+  if (
+    code === "auth/configuration-not-found" ||
+    msg.includes("CONFIGURATION_NOT_FOUND")
+  ) {
+    return "firebase-not-started";
+  }
   if (code === "auth/email-already-in-use") return "exists";
   if (code === "auth/invalid-email") return "username";
   if (code === "auth/weak-password" || code === "auth/invalid-password") {
@@ -178,7 +185,7 @@ export const auth = {
         console.warn("Firebase register failed:", err?.code, err?.message);
         return {
           ok: false,
-          reason: mapFirebaseError(err?.code),
+          reason: mapFirebaseError(err?.code, err?.message),
           detail: err?.code || err?.message || "",
         };
       }
@@ -219,7 +226,12 @@ export const auth = {
         });
         return { ok: true };
       } catch (err) {
-        return { ok: false, reason: mapFirebaseError(err.code) };
+        console.warn("Firebase login failed:", err?.code, err?.message);
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code, err?.message),
+          detail: err?.code || err?.message || "",
+        };
       }
     }
 
@@ -253,7 +265,12 @@ export const auth = {
         });
         return { ok: true };
       } catch (err) {
-        return { ok: false, reason: mapFirebaseError(err.code) };
+        console.warn("Firebase guest failed:", err?.code, err?.message);
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code, err?.message),
+          detail: err?.code || err?.message || "",
+        };
       }
     }
 

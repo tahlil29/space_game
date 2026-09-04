@@ -16,11 +16,14 @@ Open the URL Vite prints (port `43127`).
 
 ## Firebase setup (from BUILD PRODUCTS)
 
-Enable these in Firebase Console:
+Enable these in Firebase Console (project `space-game-fc099`):
 
-1. **Authentication** — Email/Password + Anonymous  
-2. **Firestore** — create DB, deploy rules from `firestore.rules`  
-3. Add a **Web app** and copy config into `.env.local`
+1. **Authentication** → click **Get started** (required once), then enable **Email/Password** and **Anonymous**
+2. **Firestore** — create DB, deploy rules from `firestore.rules`
+3. Web app config is already in `.env.local` / Render env vars
+4. **Authentication → Settings → Authorized domains** — add your Render host (e.g. `your-app.onrender.com`)
+
+If signup shows `CONFIGURATION_NOT_FOUND`, Auth was never started — step 1 above.
 
 ```
 VITE_FIREBASE_API_KEY=...

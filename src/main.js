@@ -1955,6 +1955,8 @@ document.getElementById("authForm").onsubmit = async (e) => {
     password: "Password must be at least 6 characters.",
     exists: "That username is already taken.",
     missing: "Account not found.",
+    "firebase-not-started":
+      "Open Firebase Console → Authentication → Get started, then enable Email/Password.",
     "firebase-disabled":
       "Enable Email/Password (and Anonymous) in Firebase → Authentication → Sign-in method.",
     network: "Network error talking to Firebase.",
@@ -1984,10 +1986,16 @@ document.getElementById("btnAuthGuest").onclick = async () => {
   const msg = document.getElementById("authMsg");
   const res = await auth.continueAsGuest();
   if (!res.ok) {
-    msg.textContent =
-      res.reason === "firebase-disabled"
-        ? "Enable Anonymous sign-in in Firebase Authentication."
+    if (res.reason === "firebase-not-started") {
+      msg.textContent =
+        "Open Firebase Console → Authentication → Get started, then enable Anonymous.";
+    } else if (res.reason === "firebase-disabled") {
+      msg.textContent = "Enable Anonymous sign-in in Firebase Authentication.";
+    } else {
+      msg.textContent = res.detail
+        ? `Could not start guest session. (${res.detail})`
         : "Could not start guest session.";
+    }
     return;
   }
   resumeAudio();
