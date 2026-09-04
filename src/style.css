@@ -93,6 +93,65 @@ body.menu-open canvas {
   width: min(720px, 96vw);
 }
 
+.level-map {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 20px 0 8px;
+}
+
+.map-card {
+  width: min(720px, 96vw);
+}
+
+.level-node {
+  appearance: none;
+  border: 1px solid rgba(126, 185, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  border-radius: 14px;
+  padding: 12px 8px;
+  cursor: pointer;
+  font-family: Orbitron, sans-serif;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.level-node:hover:not(.locked) {
+  transform: translateY(-2px);
+  border-color: var(--theme-accent, #7bc8ff);
+}
+
+.level-node.selected {
+  border-color: var(--theme-accent, #7bc8ff);
+  box-shadow: 0 0 0 1px var(--theme-accent, #7bc8ff);
+  background: color-mix(in srgb, var(--theme-accent, #7bc8ff) 12%, transparent);
+}
+
+.level-node.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.level-node .ln-num {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.level-node .ln-stars {
+  display: block;
+  font-size: 11px;
+  color: #ffd56b;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 620px) {
+  .level-map {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .mode-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

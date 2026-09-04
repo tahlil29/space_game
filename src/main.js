@@ -14,12 +14,20 @@ import {
   getLevel,
   waveInLevel,
   isLevelClearWave,
+  firstWaveOfLevel,
+  shouldOfferUpgrade,
   waveEnemyCount,
   pickEnemyKind,
   enemyStats,
   starsHtml,
+  levelStarsHtml,
 } from "./modes.js";
 import { getTheme, applyThemeToDom } from "./themes.js";
+import {
+  progress,
+  MAP_LEVEL_COUNT,
+  computeLevelStars,
+} from "./progress.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -27,6 +35,7 @@ const ctx = canvas.getContext("2d");
 const screens = {
   home: document.getElementById("screen-home"),
   modes: document.getElementById("screen-modes"),
+  map: document.getElementById("screen-map"),
   settings: document.getElementById("screen-settings"),
   pause: document.getElementById("screen-pause"),
   level: document.getElementById("screen-level"),
@@ -38,6 +47,7 @@ const healthWrap = document.getElementById("healthWrap");
 const help = document.getElementById("help");
 const upgradeBanner = document.getElementById("upgradeBanner");
 const modeGrid = document.getElementById("modeGrid");
+const levelMapEl = document.getElementById("levelMap");
 
 let W;
 let H;
@@ -68,6 +78,9 @@ let upgradeTargets;
 let currentMode = getMode(settings.selectedMode || "classic");
 let currentTheme = getTheme(currentMode.id);
 let pendingLevelAdvance = false;
+let selectedMapLevel = 1;
+let startLevel = 1;
+let ramsThisLevel = 0;
 const UPGRADE_HITS = 6;
 
 function isActiveGameplay() {
@@ -75,6 +88,7 @@ function isActiveGameplay() {
 }
 
 settings.load();
+progress.load();
 settings.syncToggles();
 currentMode = getMode(settings.selectedMode || "classic");
 currentTheme = getTheme(currentMode.id);
@@ -124,13 +138,60 @@ function renderModeCards() {
 function selectMode(id) {
   setActiveMode(id);
   renderModeCards();
+  const btn = document.getElementById("btnStartMode");
+  btn.textContent = currentMode.hasLevelMap ? "SELECT LEVEL" : "START MISSION";
 }
 
 function openModeSelect() {
   currentTheme = getTheme(settings.selectedMode || "classic");
   applyThemeToDom(currentTheme);
   renderModeCards();
+  document.getElementById("btnStartMode").textContent = currentMode.hasLevelMap
+    ? "SELECT LEVEL"
+    : "START MISSION";
   showScreen("modes");
+}
+
+function renderLevelMap() {
+  const unlocked = progress.getUnlocked(currentMode.id);
+  selectedMapLevel = Math.min(selectedMapLevel, unlocked);
+  document.getElementById("mapModeBadge").textContent = currentMode.hudLabel;
+  levelMapEl.innerHTML = "";
+  for (let i = 1; i <= MAP_LEVEL_COUNT; i++) {
+    const locked = i > unlocked;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "level-node" +
+      (locked ? " locked" : "") +
+      (!locked && selectedMapLevel === i ? " selected" : "");
+    const earned = progress.getStars(currentMode.id, i);
+    btn.innerHTML = `
+      <span class="ln-num">${i}</span>
+      <span class="ln-stars">${locked ? "🔒" : levelStarsHtml(earned)}</span>
+    `;
+    if (!locked) {
+      btn.onclick = () => {
+        selectedMapLevel = i;
+        renderLevelMap();
+      };
+    }
+    levelMapEl.appendChild(btn);
+  }
+}
+
+function openLevelMap() {
+  selectedMapLevel = progress.getUnlocked(currentMode.id);
+  renderLevelMap();
+  showScreen("map");
+}
+
+function beginMissionFromMenu() {
+  if (currentMode.hasLevelMap) {
+    openLevelMap();
+    return;
+  }
+  startGame(1);
 }
 
 function resize() {
@@ -184,8 +245,9 @@ addEventListener("mouseup", () => {
   mouse.down = false;
 });
 
-function reset() {
+function reset(fromLevel = 1) {
   currentMode = getMode(settings.selectedMode || "classic");
+  startLevel = Math.max(1, fromLevel);
   player = {
     x: W / 2,
     y: H / 2,
@@ -206,7 +268,7 @@ function reset() {
   powerups = [];
   score = 0;
   xp = 0;
-  wave = 1;
+  wave = firstWaveOfLevel(startLevel);
   enemiesToSpawn = waveEnemyCount(currentMode, wave);
   spawned = 0;
   spawnTimer = currentMode.spawnInterval;
@@ -215,10 +277,11 @@ function reset() {
   dashCD = 0;
   bossSpawned = false;
   upgradeTargets = [];
+  ramsThisLevel = 0;
 }
 
-function startGame() {
-  reset();
+function startGame(fromLevel = 1) {
+  reset(fromLevel);
   currentTheme = getTheme(currentMode.id);
   applyThemeToDom(currentTheme);
   pendingLevelAdvance = false;
@@ -380,13 +443,16 @@ function handleEnemyRams() {
     const ny = dy / dist;
 
     if (player.inv <= 0) {
-      let dmg = Math.round((RAM_DAMAGE[e.kind] || 10) * (currentMode.ramMult || 1));
+      let mult = currentMode.ramMult || 1;
+      if (e.kind === "boss") mult *= currentMode.bossRamMult || 1;
+      let dmg = Math.round((RAM_DAMAGE[e.kind] || 10) * mult);
       if (player.strength > 0) {
         const absorbed = Math.min(player.strength, dmg);
         player.strength -= absorbed;
         dmg -= absorbed;
       }
       if (dmg > 0) player.hp -= dmg;
+      ramsThisLevel += 1;
 
       player.x = Math.max(
         player.r,
@@ -481,18 +547,8 @@ function showUpgradeFlash() {
   setTimeout(() => el.remove(), 650);
 }
 
-function collectUpgrade(target) {
-  target.upgrade.apply(player);
-  burst(target.x, target.y, 24, target.upgrade.color);
-  playExplosion();
-  showUpgradeFlash();
-  upgradeTargets = [];
-  upgradeBanner.classList.add("screen-hidden");
-  document.getElementById("upgradeBannerText").textContent =
-    "Shoot a glowing target — 6 hits to unlock the boost!";
-
-  const clearedWave = wave;
-  wave++;
+function advanceAfterWaveClear(clearedWave) {
+  wave = clearedWave + 1;
   enemiesToSpawn = waveEnemyCount(currentMode, wave);
   spawned = 0;
   spawnTimer = currentMode.spawnInterval;
@@ -508,11 +564,36 @@ function collectUpgrade(target) {
   gameState = "playing";
 }
 
+function collectUpgrade(target) {
+  target.upgrade.apply(player);
+  burst(target.x, target.y, 24, target.upgrade.color);
+  playExplosion();
+  showUpgradeFlash();
+  upgradeTargets = [];
+  upgradeBanner.classList.add("screen-hidden");
+  document.getElementById("upgradeBannerText").textContent =
+    "Shoot a glowing target — 6 hits to unlock the boost!";
+
+  advanceAfterWaveClear(wave);
+}
+
 function showLevelComplete(clearedLevel) {
   pendingLevelAdvance = true;
   betweenWaves = true;
   gameState = "levelComplete";
   mouse.down = false;
+
+  const hullRatio = Math.max(0, player.hp / player.maxHp);
+  const earnedStars = computeLevelStars({
+    hullRatio,
+    ramHits: ramsThisLevel,
+  });
+
+  if (currentMode.hasLevelMap) {
+    progress.recordLevelClear(currentMode.id, clearedLevel, earnedStars, score);
+  } else {
+    progress.recordEndlessRun(wave - 1, score);
+  }
 
   const repair = currentMode.levelRepair || 0;
   if (repair > 0) {
@@ -529,13 +610,15 @@ function showLevelComplete(clearedLevel) {
   document.getElementById("levelClearTitle").textContent =
     `LEVEL ${clearedLevel} COMPLETE`;
   document.getElementById("lvlStatLevel").textContent = String(clearedLevel);
-  document.getElementById("lvlStatScore").textContent = String(score);
+  document.getElementById("lvlStatStars").textContent = levelStarsHtml(earnedStars);
   document.getElementById("lvlStatHull").textContent =
-    `${Math.max(0, Math.round((player.hp / player.maxHp) * 100))}%`;
+    `${Math.max(0, Math.round(hullRatio * 100))}%`;
   document.getElementById("levelClearMsg").textContent =
     repair > 0
-      ? `Systems repaired (${Math.round(repair * 100)}%). Next: Level ${clearedLevel + 1}.`
-      : `Next sector: Level ${clearedLevel + 1}.`;
+      ? `${levelStarsHtml(earnedStars)}  Systems repaired. Next: Level ${clearedLevel + 1}.`
+      : `${levelStarsHtml(earnedStars)}  Next sector: Level ${clearedLevel + 1}.`;
+
+  ramsThisLevel = 0;
   showScreen("level");
 }
 
@@ -547,10 +630,18 @@ function continueAfterLevel() {
   last = performance.now();
 }
 
+function onWaveCleared() {
+  settleWavePickups();
+  if (shouldOfferUpgrade(wave, currentMode)) {
+    startUpgradePhase();
+    return;
+  }
+  advanceAfterWaveClear(wave);
+}
+
 function startUpgradePhase() {
   betweenWaves = true;
   gameState = "upgradeSelect";
-  settleWavePickups();
 
   upgradeTargets = [];
   const picks = [...UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
@@ -559,7 +650,7 @@ function startUpgradePhase() {
   document.getElementById("upgradeBannerText").textContent =
     `Wave ${wave} cleared! Shoot a target (${UPGRADE_HITS} hits) to pick your boost.`;
   upgradeBanner.classList.remove("screen-hidden");
-  document.getElementById("enemyCount").textContent = "(pick a boost)";
+  document.getElementById("enemyCount").textContent = " · pick a boost";
 }
 
 function updateUpgradeTargets(dt) {
@@ -738,7 +829,7 @@ function updatePlaying(dt) {
   }
 
   if (spawned >= enemiesToSpawn && enemies.length === 0 && !betweenWaves) {
-    startUpgradePhase();
+    onWaveCleared();
   }
 }
 
@@ -923,6 +1014,9 @@ function gameOver() {
   pendingLevelAdvance = false;
   upgradeBanner.classList.add("screen-hidden");
   mouse.down = false;
+  if (currentMode.id === "endless") {
+    progress.recordEndlessRun(wave, score);
+  }
   document.getElementById("goLevel").textContent = String(getLevel(wave));
   document.getElementById("goWave").textContent = String(wave);
   document.getElementById("goScore").textContent = String(score);
@@ -939,16 +1033,26 @@ document.getElementById("btnPlay").onclick = () => {
 
 document.getElementById("btnStartMode").onclick = () => {
   resumeAudio();
-  startGame();
+  beginMissionFromMenu();
 };
 
 document.getElementById("btnModesBack").onclick = () => {
   showScreen("home");
 };
 
+document.getElementById("btnMapStart").onclick = () => {
+  resumeAudio();
+  startGame(selectedMapLevel);
+};
+
+document.getElementById("btnMapBack").onclick = () => {
+  openModeSelect();
+};
+
 document.getElementById("btnPlayAgain").onclick = () => {
   resumeAudio();
-  startGame();
+  if (currentMode.hasLevelMap) startGame(startLevel);
+  else startGame(1);
 };
 
 document.getElementById("btnHomeSettings").onclick = () => openSettings("home");
@@ -958,6 +1062,7 @@ document.getElementById("btnSettingsBack").onclick = () => {
   const back = settings.settingsReturn;
   if (back === "pause") showScreen("pause");
   else if (back === "modes") showScreen("modes");
+  else if (back === "map") showScreen("map");
   else showScreen("home");
 };
 
@@ -978,7 +1083,7 @@ document.getElementById("btnResume").onclick = resumeGame;
 
 document.getElementById("btnRestart").onclick = () => {
   resumeAudio();
-  startGame();
+  startGame(startLevel);
 };
 
 document.getElementById("btnMenu").onclick = goHome;
@@ -990,6 +1095,9 @@ initAudio();
 showHud(false);
 applyThemeToDom(currentTheme);
 renderModeCards();
+document.getElementById("btnStartMode").textContent = currentMode.hasLevelMap
+  ? "SELECT LEVEL"
+  : "START MISSION";
 showScreen("home");
 last = performance.now();
 animId = requestAnimationFrame(loop);

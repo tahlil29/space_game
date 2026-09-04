@@ -39,7 +39,7 @@
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V2.2</div>
+      <div class="badge">ARCADE SHOOTER · V2.3</div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
       <p class="subtitle">Fight enemy waves, upgrade your ship, and survive the void.</p>
       <div class="btn-stack">
@@ -58,8 +58,23 @@
       <p class="subtitle">Each mode changes spawn rules and difficulty.</p>
       <div class="mode-grid" id="modeGrid"></div>
       <div class="btn-stack mode-actions">
-        <button id="btnStartMode" class="btn btn-primary" type="button">START MISSION</button>
+        <button id="btnStartMode" class="btn btn-primary" type="button">CONTINUE</button>
         <button id="btnModesBack" class="btn btn-ghost" type="button">BACK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level map (Classic / Boss) -->
+  <div id="screen-map" class="screen">
+    <div class="screen-bg"></div>
+    <div class="menu-card map-card">
+      <div class="badge" id="mapModeBadge">CLASSIC</div>
+      <h2 class="title-sm">SELECT LEVEL</h2>
+      <p class="subtitle">Clear levels to unlock the next. Stars: hull + no rams.</p>
+      <div class="level-map" id="levelMap"></div>
+      <div class="btn-stack mode-actions">
+        <button id="btnMapStart" class="btn btn-primary" type="button">START LEVEL</button>
+        <button id="btnMapBack" class="btn btn-ghost" type="button">BACK</button>
       </div>
     </div>
   </div>
@@ -125,8 +140,8 @@
           <span class="stat-value" id="lvlStatLevel">1</span>
         </div>
         <div class="stat-box">
-          <span class="stat-label">SCORE</span>
-          <span class="stat-value" id="lvlStatScore">0</span>
+          <span class="stat-label">STARS</span>
+          <span class="stat-value" id="lvlStatStars">★☆☆</span>
         </div>
         <div class="stat-box">
           <span class="stat-label">HULL</span>

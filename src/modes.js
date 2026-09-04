@@ -24,8 +24,11 @@ export const MODES = {
     speedMult: 1,
     bossHpMult: 1,
     ramMult: 1,
+    bossRamMult: 1,
+    /** Offer shootable upgrade every N cleared waves */
+    upgradeEveryWaves: 1,
+    hasLevelMap: true,
     hudLabel: "CLASSIC",
-    /** Repair fraction of missing hull/strength between levels */
     levelRepair: 0.45,
   },
   endless: {
@@ -33,7 +36,7 @@ export const MODES = {
     name: "Endless Void",
     tagline: "No finish line. Survive as long as you can.",
     description:
-      "Endless waves with rising speed. Difficulty keeps climbing with no hard stop.",
+      "Endless waves with rising speed. Boosts every 2 waves — no level map.",
     difficulty: 3,
     accent: "#c77dff",
     baseEnemies: 6,
@@ -48,6 +51,9 @@ export const MODES = {
     speedMult: 1.12,
     bossHpMult: 1.1,
     ramMult: 1.05,
+    bossRamMult: 1,
+    upgradeEveryWaves: 2,
+    hasLevelMap: false,
     hudLabel: "ENDLESS",
     levelRepair: 0.2,
   },
@@ -56,7 +62,7 @@ export const MODES = {
     name: "Boss Assault",
     tagline: "Fewer fodder. One boss every wave.",
     description:
-      "Each wave brings a boss plus a small escort. Focus fire and survive the rams.",
+      "Boss + escort each wave. Boss rams hit twice as hard.",
     difficulty: 4,
     accent: "#ff8a5c",
     baseEnemies: 4,
@@ -71,6 +77,9 @@ export const MODES = {
     speedMult: 0.95,
     bossHpMult: 1.35,
     ramMult: 1.25,
+    bossRamMult: 2,
+    upgradeEveryWaves: 1,
+    hasLevelMap: true,
     hudLabel: "BOSS",
     levelRepair: 0.35,
   },
@@ -84,13 +93,21 @@ export function getLevel(wave) {
   return Math.max(1, Math.ceil(wave / WAVES_PER_LEVEL));
 }
 
-/** Wave index within the current level (1..WAVES_PER_LEVEL). */
 export function waveInLevel(wave) {
   return ((wave - 1) % WAVES_PER_LEVEL) + 1;
 }
 
 export function isLevelClearWave(wave) {
   return wave % WAVES_PER_LEVEL === 0;
+}
+
+export function firstWaveOfLevel(level) {
+  return (Math.max(1, level) - 1) * WAVES_PER_LEVEL + 1;
+}
+
+export function shouldOfferUpgrade(clearedWave, mode) {
+  const every = mode.upgradeEveryWaves || 1;
+  return clearedWave % every === 0;
 }
 
 export function waveEnemyCount(mode, wave) {
@@ -100,8 +117,8 @@ export function waveEnemyCount(mode, wave) {
 export function pickEnemyKind(mode) {
   const roll = Math.random();
   if (mode.id === "boss") {
-    if (roll < 0.5) return "basic";
-    if (roll < 0.8) return "fast";
+    if (roll < 0.45) return "basic";
+    if (roll < 0.75) return "fast";
     return "tank";
   }
   if (mode.id === "endless") {
@@ -126,7 +143,7 @@ export function enemyStats(kind, wave, mode) {
   const table = {
     basic: {
       r: 16,
-      hp: 2,
+      hp: 2 + (mode.id === "classic" ? 0 : Math.floor((level - 1) / 3)),
       speed: (78 + wave * 5) * speedMult,
       damage: 16,
     },
@@ -138,7 +155,7 @@ export function enemyStats(kind, wave, mode) {
     },
     tank: {
       r: 26,
-      hp: 5,
+      hp: 5 + (mode.id === "boss" ? level : 0),
       speed: (45 + wave * 3) * speedMult,
       damage: 22,
     },
@@ -154,4 +171,8 @@ export function enemyStats(kind, wave, mode) {
 
 export function starsHtml(n) {
   return "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
+}
+
+export function levelStarsHtml(n) {
+  return "★".repeat(n) + "☆".repeat(Math.max(0, 3 - n));
 }
