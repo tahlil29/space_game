@@ -195,6 +195,28 @@ function mapFirebaseError(code, message = "") {
   return "firebase";
 }
 
+function currentSiteHost() {
+  try {
+    return window.location.hostname || "localhost";
+  } catch {
+    return "localhost";
+  }
+}
+
+/** Shown when Google sign-in fails with unauthorized-domain. */
+export function unauthorizedDomainHint() {
+  const host = currentSiteHost();
+  return `Add "${host}" in Firebase → Authentication → Settings → Authorized domains, then retry Google.`;
+}
+
+export function isEmailOtpConfigured() {
+  return Boolean(
+    import.meta.env.VITE_EMAILJS_SERVICE_ID &&
+      import.meta.env.VITE_EMAILJS_TEMPLATE_ID &&
+      import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
+  );
+}
+
 function displayNameFromUser(user, fallback = "Pilot") {
   if (user?.displayName) return user.displayName;
   if (user?.isAnonymous) return "Guest";
@@ -540,6 +562,7 @@ export const auth = {
       } catch {
         emailed = false;
       }
+      // Firebase reset email is a LINK (not a 6-digit OTP). Keep as backup path.
       try {
         await withTimeout(
           sendPasswordResetEmail(getFirebaseAuth(), mail, {
@@ -552,13 +575,22 @@ export const auth = {
         console.warn("Firebase reset email:", err?.message || err);
       }
 
-      // Always return on-screen OTP so the user can continue without email delivery
-      return { ok: true, emailed: Boolean(emailed), demoOtp: otp };
+      // Only expose OTP on-screen when email delivery is unavailable.
+      // With EmailJS configured + success, the code goes to the inbox only.
+      if (emailed) {
+        return { ok: true, emailed: true };
+      }
+      return {
+        ok: true,
+        emailed: false,
+        demoOtp: otp,
+        emailConfigured: isEmailOtpConfigured(),
+      };
     }
 
     const db = loadAuthDb();
     if (!db.accounts[mail]) return { ok: false, reason: "missing" };
-    return { ok: true, emailed: false, demoOtp: otp };
+    return { ok: true, emailed: false, demoOtp: otp, emailConfigured: false };
   },
 
   async resetWithOtp(email, otp, newPassword) {

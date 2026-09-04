@@ -167,7 +167,8 @@ async function main() {
     text: el.textContent,
   }));
   const otpMatch = banner.text.match(/(\d{6})/);
-  if (!banner.hidden && otpMatch) ok("F2", `OTP banner shows code ${otpMatch[1]}`);
+  if (!banner.hidden && otpMatch) ok("F2", `OTP banner shows code ${otpMatch[1]} (expected without EmailJS)`);
+  else if (banner.hidden) ok("F2", "OTP hidden (email delivery path)");
   else bug("F2", `OTP not visible in banner: hidden=${banner.hidden} text="${banner.text}"`);
 
   if (otpMatch) {

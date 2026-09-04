@@ -32,7 +32,7 @@ import {
   computeLevelStars,
 } from "./progress.js";
 import { shop, COIN_REWARDS } from "./shop.js";
-import { auth } from "./auth.js";
+import { auth, unauthorizedDomainHint, isEmailOtpConfigured } from "./auth.js";
 import { userKey } from "./storage.js";
 import { isFirebaseConfigured } from "./firebase.js";
 import { pullCloudSave, pushCloudSave } from "./cloud.js";
@@ -2055,8 +2055,7 @@ const AUTH_REASONS = {
   "firebase-disabled":
     "Enable Email/Password (and Google/Anonymous if used) in Firebase → Sign-in method.",
   network: "Network error talking to Firebase.",
-  domain:
-    "Add this site’s domain in Firebase → Authentication → Authorized domains.",
+  domain: "", // filled dynamically with the exact hostname
   rate: "Too many tries. Wait a minute and retry.",
   "popup-closed": "Google sign-in was cancelled.",
   "popup-blocked": "Allow popups for this site to use Google sign-in.",
@@ -2066,6 +2065,7 @@ const AUTH_REASONS = {
 };
 
 function authFailureMessage(res, fallback) {
+  if (res.reason === "domain") return unauthorizedDomainHint();
   const base = AUTH_REASONS[res.reason] || fallback;
   if (res.detail && !AUTH_REASONS[res.reason]) return `${base} (${res.detail})`;
   return base;
@@ -2222,11 +2222,20 @@ document.getElementById("btnForgotSend").onclick = async () => {
       "Enter the code and choose a new password";
     const banner = document.getElementById("otpBanner");
     const otpMsg = document.getElementById("forgotOtpMsg");
-    if (res.demoOtp) {
+    if (res.emailed && !res.demoOtp) {
+      banner.classList.add("screen-hidden");
+      document.getElementById("forgotOtp").value = "";
+      otpMsg.textContent =
+        "Check your email for the 6-digit code, then set a new password.";
+      otpMsg.classList.add("auth-msg-ok");
+    } else if (res.demoOtp) {
+      // Fallback when EmailJS is missing or email send failed
       banner.textContent = `Your OTP code: ${res.demoOtp}`;
       banner.classList.remove("screen-hidden");
       document.getElementById("forgotOtp").value = res.demoOtp;
-      otpMsg.textContent = "Code ready — enter a new password below.";
+      otpMsg.textContent = isEmailOtpConfigured()
+        ? "Email send failed — use the on-screen code for now."
+        : "Email OTP is not set up yet (add EmailJS env vars). Use this on-screen code for now.";
       otpMsg.classList.add("auth-msg-ok");
     } else {
       banner.classList.add("screen-hidden");
