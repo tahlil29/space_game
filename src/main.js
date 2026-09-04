@@ -259,9 +259,13 @@ function renderModeCards() {
     btn.className = "mode-card" + (settings.selectedMode === id ? " selected" : "");
     btn.style.setProperty("--mode-accent", mode.accent);
     btn.dataset.mode = id;
+    const diffBars = Array.from({ length: 5 }, (_, i) =>
+      `<i class="${i < mode.difficulty ? "on" : ""}"></i>`,
+    ).join("");
     btn.innerHTML = `
       <span class="mode-name">${mode.name}</span>
-      <span class="mode-stars" aria-label="Difficulty ${mode.difficulty} of 5">${starsHtml(mode.difficulty)}</span>
+      <span class="mode-diff" aria-label="Difficulty ${mode.difficulty} of 5">${diffBars}</span>
+      <span class="mode-stars">${starsHtml(mode.difficulty)}</span>
       <span class="mode-tag">${mode.tagline}</span>
       <span class="mode-desc">${mode.description}</span>
     `;
@@ -270,11 +274,18 @@ function renderModeCards() {
   });
 }
 
+function setStartModeLabel() {
+  const btn = document.getElementById("btnStartMode");
+  const label = currentMode.hasLevelMap ? "SELECT LEVEL" : "START MISSION";
+  const main = btn.querySelector(".btn-main");
+  if (main) main.textContent = label;
+  else btn.textContent = label;
+}
+
 function selectMode(id) {
   setActiveMode(id);
   renderModeCards();
-  const btn = document.getElementById("btnStartMode");
-  btn.textContent = currentMode.hasLevelMap ? "SELECT LEVEL" : "START MISSION";
+  setStartModeLabel();
 }
 
 function openModeSelect() {
@@ -282,9 +293,7 @@ function openModeSelect() {
   currentTheme = getTheme(settings.selectedMode || "classic");
   applyThemeToDom(currentTheme);
   renderModeCards();
-  document.getElementById("btnStartMode").textContent = currentMode.hasLevelMap
-    ? "SELECT LEVEL"
-    : "START MISSION";
+  setStartModeLabel();
   showScreen("modes");
 }
 
@@ -303,8 +312,8 @@ function renderLevelMap() {
       (!locked && selectedMapLevel === i ? " selected" : "");
     const earned = progress.getStars(currentMode.id, i);
     btn.innerHTML = `
-      <span class="ln-num">${i}</span>
-      <span class="ln-stars">${locked ? "🔒" : levelStarsHtml(earned)}</span>
+      <span class="ln-num">SECTOR ${i}</span>
+      <span class="ln-stars">${locked ? "LOCKED" : levelStarsHtml(earned)}</span>
     `;
     if (!locked) {
       btn.onclick = () => {
@@ -614,6 +623,35 @@ function openShop() {
   showScreen("shop");
 }
 
+function shopRarity(item) {
+  if (item.price === 0) return { cls: "free", label: "STARTER" };
+  if (item.price <= 40) return { cls: "common", label: "COMMON" };
+  if (item.price <= 55) return { cls: "rare", label: "RARE" };
+  if (item.price <= 70) return { cls: "epic", label: "EPIC" };
+  return { cls: "legend", label: "LEGEND" };
+}
+
+function shopPreviewHtml(item) {
+  if (item.type === "ship" && item.ship) {
+    return `<div class="shop-preview" style="--ship-body:${item.ship.body};--ship-glow:${item.ship.glow}">
+      <span class="shop-ship-preview" aria-hidden="true"></span>
+      <span class="shop-swatch" style="--swatch:${item.ship.core}"></span>
+      <span class="shop-swatch" style="--swatch:${item.ship.glow}"></span>
+    </div>`;
+  }
+  if (item.type === "enemy" && item.enemy) {
+    const cols = [item.enemy.basic, item.enemy.fast, item.enemy.tank, item.enemy.boss];
+    return `<div class="shop-preview">${cols
+      .map((c) => `<span class="shop-swatch" style="--swatch:${c}"></span>`)
+      .join("")}</div>`;
+  }
+  if (item.type === "prop" && item.prop) {
+    const c = item.prop.color || "#64748b";
+    return `<div class="shop-preview"><span class="shop-swatch" style="--swatch:${c}"></span></div>`;
+  }
+  return "";
+}
+
 function renderShop() {
   refreshCoinUI();
   document.querySelectorAll(".shop-tab").forEach((t) => {
@@ -626,9 +664,10 @@ function renderShop() {
   shop.itemsByType(shopTab).forEach((item) => {
     const owned = shop.owns(item.id);
     const equipped = shop.equipped[item.type] === item.id;
+    const rarity = shopRarity(item);
     const card = document.createElement("div");
     card.className = "shop-item" + (equipped ? " equipped" : "");
-    const priceLabel = item.price === 0 ? "FREE" : `${item.price} COINS`;
+    const priceLabel = item.price === 0 ? "FREE DROP" : `◎ ${item.price}`;
     let action = "";
     if (equipped) {
       action = `<button type="button" disabled>EQUIPPED</button>`;
@@ -638,9 +677,11 @@ function renderShop() {
       action = `<button type="button" data-buy="${item.id}">BUY</button>`;
     }
     card.innerHTML = `
+      ${shopPreviewHtml(item)}
+      <div class="shop-rarity ${rarity.cls}">${rarity.label}</div>
       <h3>${item.name}</h3>
       <p>${item.desc}</p>
-      <div class="shop-price">${owned ? (equipped ? "OWNED · EQUIPPED" : "OWNED") : priceLabel}</div>
+      <div class="shop-price">${owned ? (equipped ? "OWNED · ACTIVE" : "OWNED") : priceLabel}</div>
       ${action}
     `;
     grid.appendChild(card);
@@ -651,7 +692,7 @@ function renderShop() {
       const res = shop.buy(btn.getAttribute("data-buy"));
       if (!res.ok) {
         msg.textContent =
-          res.reason === "funds" ? "Not enough coins." : "Cannot buy that.";
+          res.reason === "funds" ? "Not enough credits." : "Cannot buy that.";
         return;
       }
       msg.textContent = "Purchased and equipped!";
@@ -662,7 +703,7 @@ function renderShop() {
   grid.querySelectorAll("[data-equip]").forEach((btn) => {
     btn.onclick = () => {
       shop.equip(btn.getAttribute("data-equip"));
-      msg.textContent = "Equipped.";
+      msg.textContent = "Loadout updated.";
       if (shopTab === "prop") rebuildArenaProps();
       renderShop();
     };
@@ -1652,9 +1693,7 @@ showHud(false);
 applyThemeToDom(currentTheme);
 refreshCoinUI();
 renderModeCards();
-document.getElementById("btnStartMode").textContent = currentMode.hasLevelMap
-  ? "SELECT LEVEL"
-  : "START MISSION";
+setStartModeLabel();
 showScreen("home");
 last = performance.now();
 animId = requestAnimationFrame(loop);

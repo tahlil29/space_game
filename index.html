@@ -21,12 +21,12 @@
   <div id="hud" class="screen-hidden">
     <div class="hud-top">
       <div class="hud-panels">
-        <div class="panel mode-panel"><span id="modeLabel">CLASSIC</span></div>
-        <div class="panel">LEVEL <b id="level">1</b></div>
-        <div class="panel">WAVE <b id="wave">1</b> <span id="waveOf" class="muted">/ 3</span> <span id="enemyCount" class="muted"></span></div>
-        <div class="panel">SCORE <b id="score">0</b></div>
-        <div class="panel">XP <b id="xp">0</b></div>
-        <div class="panel coins-panel">COINS <b id="hudCoins">0</b></div>
+        <div class="panel mode-panel"><span class="panel-kicker">MODE</span><span id="modeLabel">CLASSIC</span></div>
+        <div class="panel"><span class="panel-kicker">LVL</span><b id="level">1</b></div>
+        <div class="panel"><span class="panel-kicker">WAVE</span><b id="wave">1</b> <span id="waveOf" class="muted">/ 3</span> <span id="enemyCount" class="muted"></span></div>
+        <div class="panel"><span class="panel-kicker">SCORE</span><b id="score">0</b></div>
+        <div class="panel"><span class="panel-kicker">XP</span><b id="xp">0</b></div>
+        <div class="panel coins-panel"><span class="panel-kicker">◎</span><b id="hudCoins">0</b></div>
       </div>
       <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause">⏸</button>
     </div>
@@ -60,51 +60,74 @@
   <!-- Home -->
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
-    <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V3.2 · CROSS-DEVICE</div>
+    <div class="menu-fx" aria-hidden="true"></div>
+    <div class="menu-card home-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <div class="badge pulse-badge">◆ ARCADE MISSION ◆</div>
+      <p class="pilot-tag">PILOT READY</p>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
       <p class="subtitle">
-        Earn coins from kills · buy ship skins, enemy themes, and arena props in the shop.
+        Blast hostiles · rack up coins · unlock ships, enemies &amp; arena props.
       </p>
-      <div class="btn-stack">
-        <button id="btnPlay" class="btn btn-primary" type="button">PLAY</button>
-        <button id="btnHomeShop" class="btn btn-secondary" type="button">SHOP</button>
-        <button id="btnHomeSettings" class="btn btn-secondary" type="button">SETTINGS</button>
+      <div class="coin-chip home-coin-chip">
+        <span class="coin-icon" aria-hidden="true"></span>
+        <span class="coin-label">CREDITS</span>
+        <b id="homeCoins">0</b>
       </div>
-      <p class="home-coins">Coins: <b id="homeCoins">0</b></p>
+      <div class="btn-stack">
+        <button id="btnPlay" class="btn btn-primary btn-cta" type="button">
+          <span class="btn-kicker">START</span>
+          <span class="btn-main">PLAY MISSION</span>
+        </button>
+        <button id="btnHomeShop" class="btn btn-secondary" type="button">
+          <span class="btn-main">★ OUTFITTER SHOP</span>
+        </button>
+        <button id="btnHomeSettings" class="btn btn-ghost" type="button">SETTINGS</button>
+      </div>
+      <p class="home-footer">Clear waves · earn stars · survive the void</p>
     </div>
   </div>
 
   <!-- Shop -->
   <div id="screen-shop" class="screen">
     <div class="screen-bg"></div>
-    <div class="menu-card shop-card">
-      <div class="badge">OUTFITTER</div>
-      <h2 class="title-sm">SHOP</h2>
-      <p class="subtitle">Spend coins from combat. Equip skins and arena props.</p>
-      <div class="shop-balance">COINS <b id="shopCoins">0</b></div>
+    <div class="menu-fx" aria-hidden="true"></div>
+    <div class="menu-card shop-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <div class="badge">◆ LOADOUT BAY ◆</div>
+      <h2 class="title-sm">OUTFITTER</h2>
+      <p class="subtitle">Spend combat credits. Equip skins and arena props.</p>
+      <div class="coin-chip shop-coin-chip">
+        <span class="coin-icon" aria-hidden="true"></span>
+        <span class="coin-label">CREDITS</span>
+        <b id="shopCoins">0</b>
+      </div>
       <div class="shop-tabs">
-        <button type="button" class="shop-tab active" data-tab="ship">SHIP</button>
-        <button type="button" class="shop-tab" data-tab="enemy">ENEMY</button>
+        <button type="button" class="shop-tab active" data-tab="ship">SHIPS</button>
+        <button type="button" class="shop-tab" data-tab="enemy">ENEMIES</button>
         <button type="button" class="shop-tab" data-tab="prop">PROPS</button>
       </div>
       <div class="shop-grid" id="shopGrid"></div>
       <p class="shop-msg" id="shopMsg"></p>
-      <button id="btnShopBack" class="btn btn-ghost" type="button">BACK</button>
+      <button id="btnShopBack" class="btn btn-ghost" type="button">◀ BACK</button>
     </div>
   </div>
 
   <!-- Mode select -->
   <div id="screen-modes" class="screen">
     <div class="screen-bg"></div>
-    <div class="menu-card modes-card">
-      <div class="badge">SELECT MISSION</div>
+    <div class="menu-fx" aria-hidden="true"></div>
+    <div class="menu-card modes-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <div class="badge">◆ MISSION SELECT ◆</div>
       <h2 class="title-sm">CHOOSE MODE</h2>
-      <p class="subtitle">Each mode changes spawn rules and difficulty.</p>
+      <p class="subtitle">Pick your battlefield. Harder modes pay more thrills.</p>
       <div class="mode-grid" id="modeGrid"></div>
       <div class="btn-stack mode-actions">
-        <button id="btnStartMode" class="btn btn-primary" type="button">CONTINUE</button>
-        <button id="btnModesBack" class="btn btn-ghost" type="button">BACK</button>
+        <button id="btnStartMode" class="btn btn-primary btn-cta" type="button">
+          <span class="btn-main">LAUNCH</span>
+        </button>
+        <button id="btnModesBack" class="btn btn-ghost" type="button">◀ BACK</button>
       </div>
     </div>
   </div>
@@ -112,14 +135,18 @@
   <!-- Level map (Classic / Boss) -->
   <div id="screen-map" class="screen">
     <div class="screen-bg"></div>
-    <div class="menu-card map-card">
+    <div class="menu-fx" aria-hidden="true"></div>
+    <div class="menu-card map-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
       <div class="badge" id="mapModeBadge">CLASSIC</div>
-      <h2 class="title-sm">SELECT LEVEL</h2>
-      <p class="subtitle">Clear levels to unlock the next. Stars: hull + no rams.</p>
+      <h2 class="title-sm">SECTOR MAP</h2>
+      <p class="subtitle">Clear a sector to unlock the next. Stars = hull + no rams.</p>
       <div class="level-map" id="levelMap"></div>
       <div class="btn-stack mode-actions">
-        <button id="btnMapStart" class="btn btn-primary" type="button">START LEVEL</button>
-        <button id="btnMapBack" class="btn btn-ghost" type="button">BACK</button>
+        <button id="btnMapStart" class="btn btn-primary btn-cta" type="button">
+          <span class="btn-main">ENGAGE LEVEL</span>
+        </button>
+        <button id="btnMapBack" class="btn btn-ghost" type="button">◀ BACK</button>
       </div>
     </div>
   </div>
@@ -127,8 +154,9 @@
   <!-- Settings (shared) -->
   <div id="screen-settings" class="screen">
     <div class="screen-bg"></div>
-    <div class="menu-card">
-      <div class="badge">OPTIONS</div>
+    <div class="menu-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <div class="badge">◆ SYSTEMS ◆</div>
       <h2 class="title-sm">SETTINGS</h2>
       <div class="settings-list">
         <label class="setting-row">
@@ -146,21 +174,24 @@
           <input id="toggleVibration" class="toggle" type="checkbox" checked />
         </label>
       </div>
-      <button id="btnSettingsBack" class="btn btn-secondary" type="button">BACK</button>
+      <button id="btnSettingsBack" class="btn btn-secondary" type="button">◀ BACK</button>
     </div>
   </div>
 
   <!-- Pause -->
   <div id="screen-pause" class="screen">
     <div class="screen-bg dim"></div>
-    <div class="menu-card">
+    <div class="menu-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
       <div class="badge" id="pauseModeBadge">MISSION PAUSED</div>
-      <h2 class="title-sm">PAUSED</h2>
+      <h2 class="title-sm glitch-title">PAUSED</h2>
       <div class="btn-stack">
-        <button id="btnResume" class="btn btn-primary" type="button">RESUME</button>
+        <button id="btnResume" class="btn btn-primary btn-cta" type="button">
+          <span class="btn-main">RESUME</span>
+        </button>
         <button id="btnRestart" class="btn btn-secondary" type="button">RESTART</button>
         <button id="btnPauseSettings" class="btn btn-secondary" type="button">SETTINGS</button>
-        <button id="btnMenu" class="btn btn-ghost" type="button">BACK TO MENU</button>
+        <button id="btnMenu" class="btn btn-ghost" type="button">◀ MAIN MENU</button>
       </div>
     </div>
   </div>
@@ -168,7 +199,7 @@
   <!-- Wave complete banner (shoot targets to upgrade) -->
   <div id="upgradeBanner" class="upgrade-banner screen-hidden">
     <div class="banner-inner">
-      <span class="badge success">WAVE CLEARED</span>
+      <span class="badge success">★ WAVE CLEARED ★</span>
       <span id="upgradeBannerText">Shoot a glowing target — 6 hits to unlock the boost!</span>
     </div>
   </div>
@@ -176,8 +207,9 @@
   <!-- Level complete -->
   <div id="screen-level" class="screen">
     <div class="screen-bg dim"></div>
-    <div class="menu-card">
-      <div class="badge success">SECTOR CLEARED</div>
+    <div class="menu-card arcade-panel win-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <div class="badge success">★ SECTOR CLEARED ★</div>
       <h2 class="title-sm" id="levelClearTitle">LEVEL 1 COMPLETE</h2>
       <div class="stats-grid">
         <div class="stat-box">
@@ -195,8 +227,10 @@
       </div>
       <p class="subtitle" id="levelClearMsg">Ship systems repaired. Prepare for the next sector.</p>
       <div class="btn-stack">
-        <button id="btnLevelContinue" class="btn btn-primary" type="button">CONTINUE</button>
-        <button id="btnLevelMenu" class="btn btn-ghost" type="button">MAIN MENU</button>
+        <button id="btnLevelContinue" class="btn btn-primary btn-cta" type="button">
+          <span class="btn-main">NEXT SECTOR</span>
+        </button>
+        <button id="btnLevelMenu" class="btn btn-ghost" type="button">◀ MAIN MENU</button>
       </div>
     </div>
   </div>
@@ -204,9 +238,10 @@
   <!-- Game over -->
   <div id="screen-gameover" class="screen">
     <div class="screen-bg dim danger"></div>
-    <div class="menu-card gameover-card">
-      <div class="badge danger" id="goModeBadge">MISSION FAILED</div>
-      <h2 class="title-sm">GAME OVER</h2>
+    <div class="menu-card gameover-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <div class="badge danger" id="goModeBadge">◆ SHIP DESTROYED ◆</div>
+      <h2 class="title-sm go-title">GAME OVER</h2>
       <div class="stats-grid">
         <div class="stat-box">
           <span class="stat-label">LEVEL</span>
@@ -224,8 +259,10 @@
       <p class="subtitle" id="goModeLine"></p>
       <p class="subtitle" id="goMessage">Your ship was destroyed.</p>
       <div class="btn-stack">
-        <button id="btnPlayAgain" class="btn btn-primary" type="button">PLAY AGAIN</button>
-        <button id="btnGoMenu" class="btn btn-ghost" type="button">MAIN MENU</button>
+        <button id="btnPlayAgain" class="btn btn-primary btn-cta" type="button">
+          <span class="btn-main">RETRY MISSION</span>
+        </button>
+        <button id="btnGoMenu" class="btn btn-ghost" type="button">◀ MAIN MENU</button>
       </div>
     </div>
   </div>
