@@ -66,18 +66,18 @@
   </div>
 
   <!-- Auth -->
-  <div id="screen-auth" class="screen active">
+  <div id="screen-auth" class="screen screen-app active">
     <div class="screen-bg"></div>
-    <div class="menu-fx" aria-hidden="true"></div>
-    <div class="menu-card auth-card arcade-panel">
-      <div class="panel-corners" aria-hidden="true"></div>
-      <h1 class="title auth-title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
-      <p class="auth-backend" id="authBackend">Checking save backend…</p>
+    <div class="app-shell auth-shell">
+      <header class="app-brand">
+        <h1 class="app-brand-title">SPACE <span class="title-accent">SURVIVAL</span></h1>
+        <p class="auth-backend" id="authBackend">Checking save backend…</p>
+      </header>
 
       <!-- LOGIN -->
-      <div id="authViewLogin" class="auth-view">
+      <div id="authViewLogin" class="auth-view app-panel">
         <h2 class="auth-heading">Log in</h2>
-        <p class="auth-lede">to save progress across devices</p>
+        <p class="auth-lede">Save progress across devices</p>
         <form id="loginForm" class="auth-form" autocomplete="on">
           <label class="auth-field">
             <span>Email</span>
@@ -90,7 +90,7 @@
           <button id="btnForgotOpen" class="auth-link auth-link-left" type="button">Forgot password?</button>
           <p class="auth-msg" id="loginMsg"></p>
           <button class="btn btn-primary btn-cta" type="submit">
-            <span class="btn-main">Log in →</span>
+            <span class="btn-main">Log in</span>
           </button>
         </form>
         <div class="auth-divider"><span>OR</span></div>
@@ -106,9 +106,9 @@
       </div>
 
       <!-- SIGN UP -->
-      <div id="authViewSignup" class="auth-view" hidden>
+      <div id="authViewSignup" class="auth-view app-panel" hidden>
         <h2 class="auth-heading">Sign up</h2>
-        <p class="auth-lede">create an account with email or Google</p>
+        <p class="auth-lede">Create an account with email or Google</p>
         <form id="signupForm" class="auth-form" autocomplete="on">
           <label class="auth-field">
             <span>Email</span>
@@ -120,7 +120,7 @@
           </label>
           <p class="auth-msg" id="signupMsg"></p>
           <button class="btn btn-primary btn-cta" type="submit">
-            <span class="btn-main">Create account →</span>
+            <span class="btn-main">Create account</span>
           </button>
         </form>
         <div class="auth-divider"><span>OR</span></div>
@@ -135,9 +135,9 @@
       </div>
 
       <!-- FORGOT PASSWORD -->
-      <div id="authViewForgot" class="auth-view" hidden>
+      <div id="authViewForgot" class="auth-view app-panel" hidden>
         <h2 class="auth-heading">Reset password</h2>
-        <p class="auth-lede" id="forgotLede">enter your email to get a one-time code</p>
+        <p class="auth-lede" id="forgotLede">Enter your email to get a one-time code</p>
         <div id="forgotStepEmail" class="auth-form">
           <label class="auth-field">
             <span>Email</span>
@@ -164,55 +164,55 @@
   </div>
 
   <!-- Home -->
-  <div id="screen-home" class="screen">
+  <div id="screen-home" class="screen screen-app">
     <div class="screen-bg"></div>
-    <div class="menu-fx" aria-hidden="true"></div>
 
-    <header id="profilePanel" class="home-topbar" aria-label="Pilot profile">
-      <div class="home-pilot">
-        <span class="profile-avatar" aria-hidden="true"></span>
-        <div class="home-pilot-text">
-          <div class="profile-title" id="profileRole">PILOT</div>
-          <div class="profile-name" id="profileName">Commander</div>
+    <div class="app-shell home-shell">
+      <header id="profilePanel" class="home-topbar" aria-label="Pilot profile">
+        <div class="home-pilot">
+          <span class="profile-avatar" aria-hidden="true"></span>
+          <div class="home-pilot-text">
+            <div class="profile-title" id="profileRole">PILOT</div>
+            <div class="profile-name" id="profileName">Commander</div>
+          </div>
         </div>
-      </div>
-      <div class="home-top-stats">
-        <div class="home-chip"><span>COINS</span><b id="profileCoins">0</b></div>
-        <div class="home-chip"><span>BEST</span><b id="profileBest">0</b></div>
-      </div>
-      <button id="btnProfileLogout" class="btn btn-ghost home-switch" type="button">Switch</button>
-    </header>
+        <div class="home-top-stats">
+          <div class="home-chip"><span>COINS</span><b id="profileCoins">0</b></div>
+          <div class="home-chip"><span>BEST</span><b id="profileBest">0</b></div>
+        </div>
+        <button id="btnProfileLogout" class="btn btn-ghost home-switch" type="button">Switch</button>
+      </header>
 
-    <div class="menu-card home-card arcade-panel">
-      <div class="panel-corners" aria-hidden="true"></div>
-      <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
-      <p class="home-substats">
-        Score <b id="profileScore">0</b>
-        <span class="dot">·</span>
-        Progress <b id="profileProgress">1/10</b>
-      </p>
-      <div class="btn-stack home-actions">
-        <button id="btnPlay" class="btn btn-primary btn-cta home-btn" type="button">
-          <span class="btn-icon" aria-hidden="true">▶</span>
-          <span class="btn-copy">
-            <span class="btn-kicker">ALL MODES</span>
-            <span class="btn-main">PLAY</span>
-          </span>
-        </button>
-        <button id="btnHomeShop" class="btn btn-secondary home-btn" type="button">
-          <span class="btn-icon shop-ico" aria-hidden="true">◎</span>
-          <span class="btn-copy">
-            <span class="btn-kicker">COINS &amp; SKINS</span>
-            <span class="btn-main">SHOP</span>
-          </span>
-        </button>
-        <button id="btnHomeSettings" class="btn btn-ghost home-btn" type="button">
-          <span class="btn-icon" aria-hidden="true">⚙</span>
-          <span class="btn-copy">
-            <span class="btn-kicker">SOUND &amp; VIBRATION</span>
-            <span class="btn-main">SETTINGS</span>
-          </span>
-        </button>
+      <div class="app-panel home-panel">
+        <h1 class="app-brand-title home-brand">SPACE <span class="title-accent">SURVIVAL</span></h1>
+        <p class="home-substats">
+          Score <b id="profileScore">0</b>
+          <span class="dot">·</span>
+          Progress <b id="profileProgress">1/10</b>
+        </p>
+        <div class="btn-stack home-actions">
+          <button id="btnPlay" class="btn btn-primary btn-cta home-btn" type="button">
+            <span class="btn-icon" aria-hidden="true">▶</span>
+            <span class="btn-copy">
+              <span class="btn-kicker">ALL MODES</span>
+              <span class="btn-main">PLAY</span>
+            </span>
+          </button>
+          <button id="btnHomeShop" class="btn btn-secondary home-btn" type="button">
+            <span class="btn-icon shop-ico" aria-hidden="true">◎</span>
+            <span class="btn-copy">
+              <span class="btn-kicker">COINS &amp; SKINS</span>
+              <span class="btn-main">SHOP</span>
+            </span>
+          </button>
+          <button id="btnHomeSettings" class="btn btn-ghost home-btn" type="button">
+            <span class="btn-icon" aria-hidden="true">⚙</span>
+            <span class="btn-copy">
+              <span class="btn-kicker">SOUND &amp; VIBRATION</span>
+              <span class="btn-main">SETTINGS</span>
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
