@@ -2,7 +2,6 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
   signInAnonymously,
@@ -390,62 +389,6 @@ async function updateFirebasePasswordWithRefresh(email, newPassword) {
   }
 }
 
-/** Send Firebase password-reset link (oobCode). Tries with and without continue URL. */
-async function sendFirebaseResetLink(email) {
-  const fa = getFirebaseAuth();
-  const mail = normalizeEmail(email);
-  const withTimeout = (p, ms) =>
-    Promise.race([
-      p,
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
-    ]);
-
-  // Prefer default Firebase handler — custom continue URLs often fail on unauthorized domains
-  try {
-    await withTimeout(sendPasswordResetEmail(fa, mail), 10000);
-    return true;
-  } catch (err) {
-    console.warn("Firebase reset (default) failed:", err?.code || err?.message || err);
-  }
-  try {
-    await withTimeout(
-      sendPasswordResetEmail(fa, mail, {
-        url: `${window.location.origin}${window.location.pathname || "/"}`,
-        handleCodeInApp: false,
-      }),
-      10000,
-    );
-    return true;
-  } catch (err) {
-    console.warn("Firebase reset (continueUrl) failed:", err?.code || err?.message || err);
-  }
-  // REST fallback
-  const key = apiKey();
-  if (!key) return false;
-  try {
-    const res = await withTimeout(
-      fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestType: "PASSWORD_RESET", email: mail }),
-        },
-      ),
-      10000,
-    );
-    const data = await res.json();
-    if (data.error) {
-      console.warn("Firebase reset REST failed:", data.error);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.warn("Firebase reset REST error:", err?.message || err);
-    return false;
-  }
-}
-
 export const auth = {
   userId: null,
   username: null,
@@ -686,6 +629,7 @@ export const auth = {
         console.warn("OTP Firestore write skipped:", err?.message || err);
       }
 
+      // OTP email only (EmailJS). No Firebase reset-link emails.
       let emailed = false;
       let emailDetail = "";
       try {
@@ -696,15 +640,7 @@ export const auth = {
         emailed = false;
         emailDetail = "timeout";
       }
-      // Optional Firebase reset link as backup (not the 6-digit OTP)
-      try {
-        await withTimeout(sendFirebaseResetLink(mail), 8000);
-      } catch (err) {
-        console.warn("Firebase reset email:", err?.message || err);
-      }
 
-      // Only expose OTP on-screen when email delivery is unavailable.
-      // With EmailJS configured + success, the code goes to the inbox only.
       if (emailed) {
         return { ok: true, emailed: true };
       }
@@ -765,76 +701,72 @@ export const auth = {
       }
     }
 
-    const otpValid =
-      record &&
-      record.hash === expectHash &&
-      !(record.expires && Date.now() > Number(record.expires));
-
-    // Retry path: OTP already consumed, but pending new password is saved
-    const pending = loadPendingReset();
-    const pendingMatches =
-      pending && pending.email === mail && pending.password === newPassword;
-
-    if (!otpValid && !pendingMatches) {
+    if (!record || record.hash !== expectHash) return { ok: false, reason: "otp" };
+    if (record.expires && Date.now() > Number(record.expires)) {
       return { ok: false, reason: "otp" };
     }
 
     if (isFirebaseConfigured()) {
-      // Prefer instant update when this browser has logged in before
-      if (otpValid) {
-        const updated = await updateFirebasePasswordWithRefresh(mail, newPassword).catch(
-          () => false,
-        );
-        if (updated) {
+      // 1) Same-device refresh token (instant, no server)
+      const updated = await updateFirebasePasswordWithRefresh(mail, newPassword).catch(
+        () => false,
+      );
+      if (updated) {
+        clearOtpRecord();
+        clearPendingReset();
+        try {
+          const db = getFirebaseDb();
+          if (db) {
+            await Promise.race([
+              deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
+              new Promise((r) => setTimeout(r, 2000)),
+            ]);
+          }
+        } catch {
+          /* ignore */
+        }
+        return { ok: true, needLogin: true };
+      }
+
+      // 2) Server Admin API — sets Firebase password from OTP (no email link)
+      try {
+        const apiRes = await Promise.race([
+          fetch("/api/apply-otp-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: mail, otp: code, newPassword }),
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 15000)),
+        ]);
+        const data = await apiRes.json().catch(() => ({}));
+        if (apiRes.ok && data?.ok) {
           clearOtpRecord();
           clearPendingReset();
-          try {
-            const db = getFirebaseDb();
-            if (db) {
-              await Promise.race([
-                deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
-                new Promise((r) => setTimeout(r, 2000)),
-              ]);
-            }
-          } catch {
-            /* ignore */
-          }
           return { ok: true, needLogin: true };
         }
-      }
-
-      // Save new password so old-password login (or email link) can activate it
-      savePendingReset(mail, newPassword);
-      const linkSent = await sendFirebaseResetLink(mail);
-
-      // Only clear OTP after a successful verified attempt (keep for true first-time retries
-      // if link send failed and record still valid — pendingMatches covers later retries)
-      if (otpValid) clearOtpRecord();
-      try {
-        const db = getFirebaseDb();
-        if (db && otpValid) {
-          await Promise.race([
-            deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
-            new Promise((r) => setTimeout(r, 2000)),
-          ]);
+        if (data?.reason === "otp") return { ok: false, reason: "otp", detail: data.detail };
+        if (data?.reason === "missing") return { ok: false, reason: "missing" };
+        if (data?.reason === "admin-missing" || apiRes.status === 404 || apiRes.status === 502) {
+          return {
+            ok: false,
+            reason: "firebase",
+            detail:
+              "Password reset server is not set up yet. Add FIREBASE_SERVICE_ACCOUNT_JSON on the host (see README), then try again.",
+          };
         }
-      } catch {
-        /* ignore */
-      }
-
-      if (linkSent) {
         return {
-          ok: true,
-          needLogin: true,
-          openEmailLink: true,
+          ok: false,
+          reason: "firebase",
+          detail: data?.detail || "Could not update password. Try again.",
+        };
+      } catch (err) {
+        console.warn("Password reset API failed:", err?.message || err);
+        return {
+          ok: false,
+          reason: "network",
+          detail: "Could not reach password reset server. Try again.",
         };
       }
-      // Link email failed — still OK: activate by logging in with the OLD password once
-      return {
-        ok: true,
-        needLogin: true,
-        activateViaOldPassword: true,
-      };
     }
 
     // Local accounts

@@ -2315,45 +2315,20 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
       msg.textContent = res.detail || authFailureMessage(res, "Could not reset password.");
       return;
     }
-    if (res.openEmailLink) {
-      showAuthView("login");
-      const loginMsg = document.getElementById("loginMsg");
-      loginMsg.textContent =
-        "Almost done: open the reset link in your email, or log in once with your OLD password to activate the new one.";
-      loginMsg.classList.add("auth-msg-ok");
-      document.getElementById("loginEmail").value = email;
-      document.getElementById("loginPassword").value = "";
-      showAppToast("Activate via email link — or old password once.");
-      return;
-    }
-    if (res.activateViaOldPassword) {
-      showAuthView("login");
-      const loginMsg = document.getElementById("loginMsg");
-      loginMsg.textContent =
-        "Code verified. Log in once with your OLD password to activate the new password, then use the new one next time.";
-      loginMsg.classList.add("auth-msg-ok");
-      document.getElementById("loginEmail").value = email;
-      document.getElementById("loginPassword").value = "";
-      showAppToast("Log in with your old password once to finish.");
-      return;
-    }
-    if (res.needLogin) {
-      showAuthView("login");
-      const loginMsg = document.getElementById("loginMsg");
-      loginMsg.textContent = "Password updated! Log in with your new password.";
-      loginMsg.classList.add("auth-msg-ok");
-      document.getElementById("loginEmail").value = email;
-      document.getElementById("loginPassword").value = "";
-      showAppToast("Password updated — please log in.");
-      return;
-    }
-    resumeAudio();
-    await enterAppAfterAuth({ welcome: "Password updated!" });
+    // Password is updated on the server — go to login with the NEW password
+    showAuthView("login");
+    const loginMsg = document.getElementById("loginMsg");
+    loginMsg.textContent = "Password updated! Log in with your new password.";
+    loginMsg.classList.add("auth-msg-ok");
+    document.getElementById("loginEmail").value = email;
+    document.getElementById("loginPassword").value = "";
+    document.getElementById("loginPassword")?.focus();
+    showAppToast("Password updated — log in with your new password.");
   } catch (err) {
     console.warn(err);
     msg.textContent =
       err?.message?.includes("timed out")
-        ? "Still working — check your email for a reset link, or try again."
+        ? "Timed out — try again in a moment."
         : "Could not reset password. Try again.";
   } finally {
     btn.disabled = false;

@@ -1,27 +1,35 @@
-# Render Blueprint — use Static Site (NOT Web Service)
-# New → Blueprint, or New → Static Site with the same build settings below.
-# Free tier first deploy can sit in a queue; later deploys are faster.
+# Render Blueprint — Node web service (serves built game + password-reset API)
 services:
   - type: web
     name: space-survival
-    runtime: static
+    runtime: node
     plan: free
     buildCommand: npm install --no-audit --no-fund && npm run build
-    staticPublishPath: dist
-    buildFilter:
-      paths:
-        - src/**
-        - public/**
-        - index.html
-        - package.json
-        - package-lock.json
-        - vite.config.js
-        - render.yaml
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Required for OTP → set password without email reset links:
+      # Paste the full Firebase service account JSON as one line.
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      # Client Firebase + EmailJS (same as before)
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+      - key: VITE_EMAILJS_SERVICE_ID
+        sync: false
+      - key: VITE_EMAILJS_TEMPLATE_ID
+        sync: false
+      - key: VITE_EMAILJS_PUBLIC_KEY
+        sync: false
