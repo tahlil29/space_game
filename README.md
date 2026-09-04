@@ -15,27 +15,29 @@ Open the URL Vite prints (port `43127`). Works in mobile browsers too (same Wi�
 
 ## Deploy on Render
 
-This repo is ready as a **Static Site** (best fit — no server needed).
+Use a **Static Site** only — do **not** create a Web Service. Web Services are much slower on the free plan.
 
-### Option A — Blueprint (easiest)
-
-1. Push is already on GitHub: `https://github.com/tahlil29/space_game`
-2. In Render: **New → Blueprint**
-3. Connect the repo (uses `render.yaml`)
-4. Deploy — live URL will look like `https://space-survival.onrender.com`
-
-### Option B — Manual Static Site
+### Fastest setup (manual Static Site)
 
 1. Render → **New → Static Site**
 2. Connect `tahlil29/space_game`, branch `main`
 3. Settings:
-   - **Build command:** `npm ci && npm run build`
+   - **Build command:** `npm install --no-audit --no-fund && npm run build`
    - **Publish directory:** `dist`
-4. Create Static Site → wait for build
+4. Deploy
 
-Auto-deploys on every push to `main`.
+### Blueprint
 
-Shop coins / unlocks stay in each player’s browser (`localStorage`), so Render does not need a database.
+`render.yaml` is already in the repo (Static Site). **New → Blueprint** → connect the repo.
+
+### If deploy feels stuck
+
+- Free tier often waits in a **build queue** (can be several minutes before it even starts)
+- First deploy is slowest; later pushes only rebuild when game files change
+- Confirm the service type is **Static**, not **Web**
+- Build itself is tiny (Vite only) — long waits are almost always the free queue
+
+Shop progress stays in the browser (`localStorage`). No database needed.
 
 ## Devices
 
