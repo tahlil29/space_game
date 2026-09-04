@@ -92,6 +92,90 @@ let arenaProps = [];
 let shopTab = "ship";
 const UPGRADE_HITS = 6;
 
+const touch = {
+  active: false,
+  moveX: 0,
+  moveY: 0,
+  firing: false,
+  joyId: null,
+  fireId: null,
+};
+
+const joyPad = document.getElementById("joyPad");
+const joyKnob = document.getElementById("joyKnob");
+const touchControls = document.getElementById("touchControls");
+const btnTouchFire = document.getElementById("btnTouchFire");
+const btnTouchDash = document.getElementById("btnTouchDash");
+
+function prefersTouchUi() {
+  return (
+    matchMedia("(pointer: coarse)").matches ||
+    matchMedia("(hover: none)").matches ||
+    (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1024)
+  );
+}
+
+function syncTouchUi(force) {
+  const on = force === true || (force !== false && prefersTouchUi());
+  touch.active = on;
+  document.body.classList.toggle("touch-ui", on);
+  if (!isActiveGameplay() && gameState !== "paused") {
+    touchControls.classList.add("screen-hidden");
+    touchControls.setAttribute("aria-hidden", "true");
+    return;
+  }
+  touchControls.classList.toggle("screen-hidden", !on);
+  touchControls.setAttribute("aria-hidden", on ? "false" : "true");
+}
+
+function resetTouchMove() {
+  touch.moveX = 0;
+  touch.moveY = 0;
+  touch.joyId = null;
+  if (joyKnob) joyKnob.style.transform = "translate(0px, 0px)";
+}
+
+function setJoyFromPoint(clientX, clientY) {
+  const rect = joyPad.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const max = rect.width * 0.34;
+  let dx = clientX - cx;
+  let dy = clientY - cy;
+  const len = Math.hypot(dx, dy) || 1;
+  if (len > max) {
+    dx = (dx / len) * max;
+    dy = (dy / len) * max;
+  }
+  touch.moveX = dx / max;
+  touch.moveY = dy / max;
+  joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+function aimAtNearestThreat() {
+  if (!player) return;
+  let best = null;
+  let bestDist = Infinity;
+  const pool =
+    gameState === "upgradeSelect" && upgradeTargets.length
+      ? upgradeTargets
+      : enemies;
+  for (const t of pool) {
+    const d = Math.hypot(t.x - player.x, t.y - player.y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = t;
+    }
+  }
+  if (best) {
+    mouse.x = best.x;
+    mouse.y = best.y;
+  } else if (Math.hypot(touch.moveX, touch.moveY) > 0.15) {
+    mouse.x = player.x + touch.moveX * 200;
+    mouse.y = player.y + touch.moveY * 200;
+  }
+}
+
 function isActiveGameplay() {
   return gameState === "playing" || gameState === "upgradeSelect";
 }
@@ -156,6 +240,14 @@ function showHud(visible) {
   hud.classList.toggle("screen-hidden", !visible);
   healthWrap.classList.toggle("screen-hidden", !visible);
   help.classList.toggle("screen-hidden", !visible);
+  if (visible) syncTouchUi();
+  else {
+    touchControls.classList.add("screen-hidden");
+    touch.firing = false;
+    mouse.down = false;
+    resetTouchMove();
+    btnTouchFire?.classList.remove("active");
+  }
 }
 
 function renderModeCards() {
@@ -260,17 +352,31 @@ function rebuildStars() {
 
 function resize() {
   dpr = Math.min(devicePixelRatio || 1, 2);
-  W = innerWidth;
-  H = innerHeight;
+  const vv = window.visualViewport;
+  W = Math.max(1, Math.floor(vv?.width || innerWidth));
+  H = Math.max(1, Math.floor(vv?.height || innerHeight));
   canvas.width = W * dpr;
   canvas.height = H * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (!player) player = { x: W / 2, y: H / 2 };
+  else {
+    player.x = Math.min(W - player.r, Math.max(player.r, player.x));
+    player.y = Math.min(H - player.r, Math.max(player.r, player.y));
+  }
   rebuildStars();
+  syncTouchUi();
 }
 
 addEventListener("resize", resize);
+window.visualViewport?.addEventListener("resize", resize);
+window.visualViewport?.addEventListener("scroll", resize);
+matchMedia("(pointer: coarse)").addEventListener?.("change", () => syncTouchUi());
+matchMedia("(orientation: portrait)").addEventListener?.("change", () => {
+  resize();
+  syncTouchUi();
+});
 resize();
+syncTouchUi();
 
 addEventListener("keydown", (e) => {
   if (e.code === "Escape") {
@@ -294,6 +400,7 @@ addEventListener("keyup", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
+  if (touch.active && touch.firing) return;
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
@@ -301,8 +408,123 @@ canvas.addEventListener("mousedown", () => {
   if (isActiveGameplay()) mouse.down = true;
 });
 addEventListener("mouseup", () => {
-  mouse.down = false;
+  if (!touch.firing) mouse.down = false;
 });
+
+// First touch on a touch device enables touch UI even on hybrid laptops
+addEventListener(
+  "touchstart",
+  () => {
+    if (!touch.active) syncTouchUi(true);
+  },
+  { passive: true },
+);
+
+function bindPressButton(el, onDown, onUp) {
+  const down = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDown(e);
+  };
+  const up = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onUp(e);
+  };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+  el.addEventListener("pointerleave", (e) => {
+    if (e.buttons === 0) onUp(e);
+  });
+}
+
+joyPad.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (!isActiveGameplay()) return;
+    e.preventDefault();
+    joyPad.setPointerCapture(e.pointerId);
+    touch.joyId = e.pointerId;
+    setJoyFromPoint(e.clientX, e.clientY);
+  },
+  { passive: false },
+);
+
+joyPad.addEventListener(
+  "pointermove",
+  (e) => {
+    if (touch.joyId !== e.pointerId) return;
+    e.preventDefault();
+    setJoyFromPoint(e.clientX, e.clientY);
+  },
+  { passive: false },
+);
+
+function endJoy(e) {
+  if (touch.joyId != null && e.pointerId !== touch.joyId) return;
+  resetTouchMove();
+}
+
+joyPad.addEventListener("pointerup", endJoy);
+joyPad.addEventListener("pointercancel", endJoy);
+
+bindPressButton(
+  btnTouchFire,
+  () => {
+    if (!isActiveGameplay()) return;
+    touch.firing = true;
+    mouse.down = true;
+    btnTouchFire.classList.add("active");
+    aimAtNearestThreat();
+  },
+  () => {
+    touch.firing = false;
+    mouse.down = false;
+    btnTouchFire.classList.remove("active");
+  },
+);
+
+btnTouchDash.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  dash();
+});
+
+// Tap canvas to aim / fire briefly (boost targets + desktop-like tap)
+canvas.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (!isActiveGameplay()) return;
+    if (e.target !== canvas) return;
+    if (touch.active && e.pointerType === "touch") {
+      // On touch UI, canvas taps aim at that point (upgrade pick / manual aim)
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      if (gameState === "upgradeSelect") {
+        mouse.down = true;
+        touch.firing = true;
+      }
+    }
+  },
+  { passive: true },
+);
+
+canvas.addEventListener("pointerup", (e) => {
+  if (e.pointerType === "touch" && gameState === "upgradeSelect") {
+    mouse.down = false;
+    touch.firing = false;
+  }
+});
+
+// Prevent page gestures while playing
+document.addEventListener(
+  "gesturestart",
+  (e) => {
+    e.preventDefault();
+  },
+  { passive: false },
+);
 
 function reset(fromLevel = 1) {
   currentMode = getMode(settings.selectedMode || "classic");
@@ -356,6 +578,7 @@ function startGame(fromLevel = 1) {
   setMusicEnabled(settings.music);
   rebuildArenaProps();
   refreshCoinUI();
+  syncTouchUi();
   last = performance.now();
 }
 
@@ -363,6 +586,10 @@ function pauseGame() {
   if (!isActiveGameplay()) return;
   gameState = "paused";
   mouse.down = false;
+  touch.firing = false;
+  resetTouchMove();
+  btnTouchFire?.classList.remove("active");
+  touchControls.classList.add("screen-hidden");
   document.getElementById("pauseModeBadge").textContent =
     `${currentMode.hudLabel} · PAUSED`;
   showScreen("pause");
@@ -372,6 +599,7 @@ function resumeGame() {
   if (gameState !== "paused") return;
   gameState = upgradeTargets.length > 0 ? "upgradeSelect" : "playing";
   showScreen(null);
+  syncTouchUi();
   last = performance.now();
 }
 
@@ -547,9 +775,13 @@ function settleWavePickups() {
 function dash() {
   if (dashCD > 0 || !isActiveGameplay()) return;
   const dx =
-    (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+    (keys.d || keys.arrowright ? 1 : 0) -
+    (keys.a || keys.arrowleft ? 1 : 0) +
+    touch.moveX;
   const dy =
-    (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
+    (keys.s || keys.arrowdown ? 1 : 0) -
+    (keys.w || keys.arrowup ? 1 : 0) +
+    touch.moveY;
   const len = Math.hypot(dx, dy);
   if (!len) return;
   player.x = Math.max(
@@ -1036,20 +1268,31 @@ function updatePlaying(dt) {
 }
 
 function update(dt) {
-  const ax =
-    (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
-  const ay =
-    (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
-  const moveLen = Math.hypot(ax, ay) || 1;
+  if (touch.active && (touch.firing || mouse.down)) {
+    aimAtNearestThreat();
+  }
 
-  player.x = Math.max(
-    player.r,
-    Math.min(W - player.r, player.x + (ax / moveLen) * player.speed * dt),
-  );
-  player.y = Math.max(
-    player.r,
-    Math.min(H - player.r, player.y + (ay / moveLen) * player.speed * dt),
-  );
+  const ax =
+    (keys.d || keys.arrowright ? 1 : 0) -
+    (keys.a || keys.arrowleft ? 1 : 0) +
+    touch.moveX;
+  const ay =
+    (keys.s || keys.arrowdown ? 1 : 0) -
+    (keys.w || keys.arrowup ? 1 : 0) +
+    touch.moveY;
+  const moveLen = Math.hypot(ax, ay) || 1;
+  const moving = Math.hypot(ax, ay) > 0.08;
+
+  if (moving) {
+    player.x = Math.max(
+      player.r,
+      Math.min(W - player.r, player.x + (ax / moveLen) * player.speed * dt),
+    );
+    player.y = Math.max(
+      player.r,
+      Math.min(H - player.r, player.y + (ay / moveLen) * player.speed * dt),
+    );
+  }
 
   shootCD -= dt;
   dashCD -= dt;

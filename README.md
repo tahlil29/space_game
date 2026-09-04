@@ -1,8 +1,8 @@
 # Space Survival
 
-Browser arena shooter — modes, levels, themes, level map, shootable boosts, and a coin shop.
+Browser arena shooter — modes, levels, themes, shop, and touch-friendly controls for phone, tablet, and laptop.
 
-**V3.1** adds a shop: earn coins from kills, then buy ship skins, enemy themes, and arena props.
+**V3.2** stabilizes UI/gameplay across devices (responsive menus + on-screen stick / FIRE / DASH).
 
 ## Run locally
 
@@ -11,7 +11,16 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (port `43127`).
+Open the URL Vite prints (port `43127`). Works in mobile browsers too (same Wi‑Fi / localhost tunnel).
+
+## Devices
+
+| Device | Controls | UI |
+|--------|----------|----|
+| **Laptop / desktop** | WASD, mouse aim, click/space fire, Shift dash | Full HUD + help text |
+| **Phone / tablet** | Left stick move, FIRE (auto-aim), DASH, pause button | Compact HUD, safe-area padding, touch pads |
+
+Menus scroll on short screens; zoom/scroll gestures are blocked during play.
 
 ## Shop
 
@@ -39,8 +48,10 @@ Open the URL Vite prints (port `43127`).
 
 ## Boosts
 
-Shoot glowing targets (**6 hits**) after eligible waves. Each mode has its own upgrade pool.
+Shoot glowing targets (**6 hits**) after eligible waves. On touch, hold **FIRE** (auto-aims) or tap a target.
 
 ## Controls
 
-WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause
+**Desktop:** WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause  
+
+**Touch:** Left stick · FIRE · DASH · Pause (top-right)

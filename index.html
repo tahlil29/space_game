@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#02030a" />
   <title>Space Survival</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="/src/style.css" />
@@ -33,14 +40,28 @@
   </div>
 
   <div id="help" class="screen-hidden">
-    WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause · Shoot targets for boosts
+    <span class="help-desktop">WASD move · Mouse aim · Click/Space fire · Shift dash · Esc pause</span>
+    <span class="help-touch">Left stick move · FIRE auto-aims · DASH · Pause top-right</span>
+  </div>
+
+  <!-- Touch controls (phone / tablet) -->
+  <div id="touchControls" class="touch-controls screen-hidden" aria-hidden="true">
+    <div id="joyPad" class="joy-pad" aria-label="Move">
+      <div class="joy-base">
+        <div id="joyKnob" class="joy-knob"></div>
+      </div>
+    </div>
+    <div class="touch-actions">
+      <button id="btnTouchDash" class="touch-btn touch-dash" type="button" aria-label="Dash">DASH</button>
+      <button id="btnTouchFire" class="touch-btn touch-fire" type="button" aria-label="Fire">FIRE</button>
+    </div>
   </div>
 
   <!-- Home -->
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V3.1 · SHOP</div>
+      <div class="badge">ARCADE SHOOTER · V3.2 · CROSS-DEVICE</div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
       <p class="subtitle">
         Earn coins from kills · buy ship skins, enemy themes, and arena props in the shop.
