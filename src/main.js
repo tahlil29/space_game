@@ -941,11 +941,20 @@ function openAuth(message = "") {
 
 async function enterAppAfterAuth(options = {}) {
   const { welcome = "" } = options;
+  const syncUid = auth.userId;
   // Show home immediately so signup/login never leave a blank screen
   try {
     loadUserData();
   } catch (err) {
     console.warn("Load user data failed:", err);
+  }
+  // Persist defaults immediately so a refresh before cloud sync can't lose the slot
+  try {
+    shop.save();
+    progress.save();
+    settings.save();
+  } catch {
+    /* ignore */
   }
   goHome();
   refreshProfileIdentity();
@@ -953,9 +962,11 @@ async function enterAppAfterAuth(options = {}) {
   refreshCareerStats();
   if (welcome) showAppToast(welcome);
 
-  // Cloud sync in background (do not block UI)
+  // Cloud sync in background (do not block UI). Merge-on-pull prevents wiping
+  // coins/unlocks earned while this request is in flight.
   Promise.resolve()
     .then(async () => {
+      if (auth.userId !== syncUid) return;
       try {
         await Promise.race([
           pullCloudSave(),
@@ -963,6 +974,19 @@ async function enterAppAfterAuth(options = {}) {
         ]);
       } catch (err) {
         console.warn("Cloud pull skipped:", err);
+      }
+      if (auth.userId !== syncUid) return;
+      // Don't clobber an active run's in-memory state mid-mission
+      if (gameState === "playing" || gameState === "paused" || gameState === "upgradeSelect") {
+        try {
+          await Promise.race([
+            pushCloudSave(true),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("push timeout")), 8000)),
+          ]);
+        } catch (err) {
+          console.warn("Cloud push skipped:", err);
+        }
+        return;
       }
       try {
         loadUserData();
@@ -972,7 +996,6 @@ async function enterAppAfterAuth(options = {}) {
         /* ignore */
       }
       try {
-        // Persist defaults for brand-new accounts
         shop.save();
         progress.save();
         settings.save();
@@ -2089,6 +2112,15 @@ document.getElementById("btnGoLogin").onclick = () => showAuthView("login");
 document.getElementById("btnForgotOpen").onclick = () => openForgotView();
 document.getElementById("btnForgotBack").onclick = () => showAuthView("login");
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out`)), ms),
+    ),
+  ]);
+}
+
 document.getElementById("loginForm").onsubmit = async (e) => {
   e.preventDefault();
   const msg = document.getElementById("loginMsg");
@@ -2098,7 +2130,7 @@ document.getElementById("loginForm").onsubmit = async (e) => {
   const password = document.getElementById("loginPassword").value;
   setAuthBusy(true);
   try {
-    const res = await auth.login(email, password);
+    const res = await withTimeout(auth.login(email, password), 15000, "Login");
     if (!res.ok) {
       msg.textContent = authFailureMessage(res, "Could not log in.");
       return;
@@ -2107,7 +2139,10 @@ document.getElementById("loginForm").onsubmit = async (e) => {
     await enterAppAfterAuth({ welcome: `Welcome back, ${auth.displayName()}!` });
   } catch (err) {
     console.warn(err);
-    msg.textContent = "Login failed. Check your email and password.";
+    msg.textContent =
+      err?.message?.includes("timed out")
+        ? "Login timed out. Check your connection and try again."
+        : "Login failed. Check your email and password.";
   } finally {
     setAuthBusy(false);
   }
@@ -2122,7 +2157,7 @@ document.getElementById("signupForm").onsubmit = async (e) => {
   const password = document.getElementById("signupPassword").value;
   setAuthBusy(true);
   try {
-    const res = await auth.register(email, password);
+    const res = await withTimeout(auth.register(email, password), 15000, "Sign up");
     if (!res.ok) {
       msg.textContent = authFailureMessage(res, "Could not create account.");
       return;
@@ -2133,7 +2168,10 @@ document.getElementById("signupForm").onsubmit = async (e) => {
     });
   } catch (err) {
     console.warn(err);
-    msg.textContent = "Could not create account. Try again.";
+    msg.textContent =
+      err?.message?.includes("timed out")
+        ? "Sign up timed out. Check your connection and try again."
+        : "Could not create account. Try again.";
   } finally {
     setAuthBusy(false);
   }

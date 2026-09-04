@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --host localhost --port 43127",
     "build": "vite build",
-    "preview": "vite preview --host localhost --port 43127"
+    "preview": "vite preview --host localhost --port 43127",
+    "qa": "node scripts/e2e-qa.mjs",
+    "qa:full": "node scripts/e2e-qa-full.mjs"
   },
   "engines": {
     "node": "20.x"
