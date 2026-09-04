@@ -1,4 +1,5 @@
 import { userKey } from "./storage.js";
+import { scheduleCloudPush } from "./cloud.js";
 
 export const MAP_LEVEL_COUNT = 10;
 
@@ -55,6 +56,7 @@ export const progress = {
         endless: this.endless,
       }),
     );
+    scheduleCloudPush();
   },
 
   getUnlocked(modeId) {

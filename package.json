@@ -12,6 +12,7 @@
     "node": "20.x"
   },
   "dependencies": {
+    "firebase": "^12.18.0",
     "vite": "^8.2.2"
   }
 }

@@ -34,6 +34,8 @@ import {
 import { shop, COIN_REWARDS } from "./shop.js";
 import { auth } from "./auth.js";
 import { userKey } from "./storage.js";
+import { isFirebaseConfigured } from "./firebase.js";
+import { pullCloudSave, pushCloudSave } from "./cloud.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -928,13 +930,15 @@ function openAuth(message = "") {
   showScreen("auth");
 }
 
-function enterAppAfterAuth() {
+async function enterAppAfterAuth() {
+  await pullCloudSave();
   loadUserData();
+  await pushCloudSave(true);
   goHome();
 }
 
-function logoutToAuth() {
-  auth.logout();
+async function logoutToAuth() {
+  await auth.logout();
   loadUserData();
   openAuth("Signed out. Login, create an account, or continue as guest.");
 }
@@ -1835,6 +1839,7 @@ function gameOver() {
   } catch {
     /* ignore */
   }
+  pushCloudSave(true);
   refreshCareerStats();
   showScreen("gameover");
 }
@@ -1950,6 +1955,10 @@ document.getElementById("authForm").onsubmit = async (e) => {
     password: "Password must be at least 4 characters.",
     exists: "That username is already taken.",
     missing: "Account not found.",
+    "firebase-disabled":
+      "Enable Email/Password (and Anonymous) in Firebase Authentication.",
+    network: "Network error talking to Firebase.",
+    firebase: "Firebase auth failed. Check your project config.",
   };
   try {
     const res =
@@ -1961,16 +1970,24 @@ document.getElementById("authForm").onsubmit = async (e) => {
       return;
     }
     resumeAudio();
-    enterAppAfterAuth();
+    await enterAppAfterAuth();
   } catch {
     msg.textContent = "Auth failed on this device.";
   }
 };
 
-document.getElementById("btnAuthGuest").onclick = () => {
-  auth.continueAsGuest();
+document.getElementById("btnAuthGuest").onclick = async () => {
+  const msg = document.getElementById("authMsg");
+  const res = await auth.continueAsGuest();
+  if (!res.ok) {
+    msg.textContent =
+      res.reason === "firebase-disabled"
+        ? "Enable Anonymous sign-in in Firebase Authentication."
+        : "Could not start guest session.";
+    return;
+  }
   resumeAudio();
-  enterAppAfterAuth();
+  await enterAppAfterAuth();
 };
 
 document.getElementById("btnProfileLogout").onclick = logoutToAuth;
@@ -1980,13 +1997,22 @@ initAudio();
 showHud(false);
 applyThemeToDom(currentTheme);
 
-const hasSession = auth.init();
-if (hasSession) {
-  loadUserData();
-  goHome();
-} else {
-  openAuth();
-}
+(async () => {
+  const modeEl = document.getElementById("authBackend");
+  if (modeEl) {
+    modeEl.textContent = isFirebaseConfigured()
+      ? "FIREBASE CLOUD SAVE"
+      : "LOCAL SAVE (add Firebase env to enable cloud)";
+  }
+  const hasSession = await auth.init();
+  if (hasSession) {
+    await pullCloudSave();
+    loadUserData();
+    goHome();
+  } else {
+    openAuth();
+  }
+})();
 
 last = performance.now();
 animId = requestAnimationFrame(loop);

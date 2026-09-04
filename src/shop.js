@@ -1,4 +1,5 @@
 import { userKey } from "./storage.js";
+import { scheduleCloudPush } from "./cloud.js";
 
 export const COIN_REWARDS = {
   basic: 3,
@@ -245,6 +246,7 @@ export const shop = {
         equipped: this.equipped,
       }),
     );
+    scheduleCloudPush();
   },
 
   addCoins(n) {

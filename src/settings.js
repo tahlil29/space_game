@@ -1,4 +1,5 @@
 import { userKey } from "./storage.js";
+import { scheduleCloudPush } from "./cloud.js";
 
 export const settings = {
   music: true,
@@ -35,6 +36,7 @@ export const settings = {
         selectedMode: this.selectedMode,
       }),
     );
+    scheduleCloudPush();
   },
 
   syncToggles() {

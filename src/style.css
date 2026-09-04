@@ -195,7 +195,15 @@ body.menu-open canvas {
 }
 
 .auth-sub {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+}
+
+.auth-backend {
+  margin: 0 0 14px;
+  font-family: Orbitron, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  opacity: 0.55;
 }
 
 .auth-tabs {
