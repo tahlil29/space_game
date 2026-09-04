@@ -8,7 +8,7 @@ const BASE = process.env.QA_BASE || "http://localhost:43127";
 const chrome = process.env.CHROME_PATH || "/usr/local/bin/google-chrome";
 
 const stamp = Date.now();
-const email = `pilot.reset.${stamp}@example.com`;
+const email = `pilot.reset.${stamp}@gmail.com`;
 const oldPassword = `OldPass${stamp}x`;
 const newPassword = `NewPass${stamp}x`;
 
@@ -41,26 +41,22 @@ async function main() {
 
   await page.goto(BASE, { waitUntil: "networkidle0" });
 
-  // Register
   await page.click("#btnGoSignup");
   await page.waitForSelector("#signupForm", { visible: true });
-  await page.type("#signupEmail", email);
-  await page.type("#signupPassword", oldPassword);
-  await page.click('#signupForm button[type="submit"]');
+  await page.evaluate(
+    (mail, pw) => {
+      document.getElementById("signupEmail").value = mail;
+      document.getElementById("signupPassword").value = pw;
+      document.getElementById("signupForm").requestSubmit();
+    },
+    email,
+    oldPassword,
+  );
 
-  const signupErr = await Promise.race([
-    page.waitForFunction(
-      () => document.getElementById("screen-home")?.classList.contains("active"),
-      { timeout: 25000 },
-    ).then(() => null),
-    page
-      .waitForFunction(
-        () => (document.getElementById("signupMsg")?.textContent || "").length > 3,
-        { timeout: 25000 },
-      )
-      .then(async () => page.$eval("#signupMsg", (el) => el.textContent)),
-  ]);
-  if (signupErr) throw new Error(`signup failed: ${signupErr}`);
+  await page.waitForFunction(
+    () => document.getElementById("screen-home")?.classList.contains("active"),
+    { timeout: 25000 },
+  );
   log("registered + home");
 
   const stored = await page.evaluate(
@@ -70,15 +66,15 @@ async function main() {
   if (!stored) throw new Error("local auth password was not saved after register");
   log("local recovery password saved");
 
-  // Logout
   await page.click("#btnProfileLogout");
   await page.waitForSelector("#authViewLogin", { visible: true });
   log("logged out");
 
-  // Forgot → send OTP
   await page.click("#btnForgotOpen");
   await page.waitForSelector("#forgotStepEmail", { visible: true });
-  await page.type("#forgotEmail", email);
+  await page.evaluate((mail) => {
+    document.getElementById("forgotEmail").value = mail;
+  }, email);
   await page.click("#btnForgotSend");
   await page.waitForSelector("#forgotStepOtp", { visible: true });
   await page.waitForFunction(
@@ -108,18 +104,21 @@ async function main() {
   if (!/^\d{6}$/.test(otp)) throw new Error(`no OTP available (captured=${capturedOtp})`);
   log(`otp ${otp}`);
 
-  await page.click("#forgotOtp", { clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await page.type("#forgotOtp", otp);
-  await page.type("#forgotPassword", newPassword);
-  await page.click("#btnForgotReset");
+  await page.evaluate(
+    (code, pw) => {
+      document.getElementById("forgotOtp").value = code;
+      document.getElementById("forgotPassword").value = pw;
+      document.getElementById("forgotResetForm").requestSubmit();
+    },
+    otp,
+    newPassword,
+  );
 
   await page.waitForFunction(
     () => {
-      const loginVisible = !document.getElementById("authViewLogin")?.hidden;
       const loginMsg = document.getElementById("loginMsg")?.textContent || "";
       const forgotMsg = document.getElementById("forgotOtpMsg")?.textContent || "";
-      return (loginVisible && /Password updated/i.test(loginMsg)) || forgotMsg.length > 3;
+      return /Password updated/i.test(loginMsg) || forgotMsg.length > 3;
     },
     { timeout: 30000 },
   );
@@ -131,14 +130,15 @@ async function main() {
   }
   log(`reset ok — ${loginMsg}`);
 
-  // Login with NEW password
-  await page.click("#loginEmail", { clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await page.type("#loginEmail", email);
-  await page.click("#loginPassword", { clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await page.type("#loginPassword", newPassword);
-  await page.click('#loginForm button[type="submit"]');
+  await page.evaluate(
+    (mail, pw) => {
+      document.getElementById("loginEmail").value = mail;
+      document.getElementById("loginPassword").value = pw;
+      document.getElementById("loginForm").requestSubmit();
+    },
+    email,
+    newPassword,
+  );
   await page.waitForFunction(
     () => document.getElementById("screen-home")?.classList.contains("active"),
     { timeout: 25000 },

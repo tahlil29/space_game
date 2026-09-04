@@ -2308,7 +2308,7 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
     const res = await Promise.race([
       auth.resetWithOtp(email, otp, password),
       new Promise((_, rej) =>
-        setTimeout(() => rej(new Error("Password reset timed out")), 25000),
+        setTimeout(() => rej(new Error("Password reset timed out")), 35000),
       ),
     ]);
     if (!res.ok) {

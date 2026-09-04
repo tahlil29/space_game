@@ -176,16 +176,16 @@ async function rememberAuthSecret(email, password) {
 }
 
 /**
- * After OTP is verified: unlock → read stored password → fresh sign-in → updatePassword.
- * Works without FIREBASE_SERVICE_ACCOUNT_JSON when a prior login saved authSecrets.
+ * After OTP is verified: use stored password + Identity Toolkit REST to set a new
+ * password without touching the Firebase JS auth session (avoids sign-in/out races).
  */
 async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
   const mail = normalizeEmail(email);
-  const fa = getFirebaseAuth();
   const db = getFirebaseDb();
-  if (!fa || !db) return { ok: false, reason: "missing-secret" };
+  const key = apiKey();
+  if (!key) return { ok: false, reason: "missing-secret" };
 
-  const key = emailDocKey(mail);
+  const docKey = emailDocKey(mail);
   const withTimeout = (p, ms) =>
     Promise.race([
       p,
@@ -196,17 +196,17 @@ async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
   let oldPassword = loadLocalAuthPassword(mail);
 
   // 2) Cross-device: OTP-gated Firestore secret
-  if (!oldPassword) {
+  if (!oldPassword && db) {
     try {
       await withTimeout(
-        setDoc(doc(db, "otpUnlocks", key), {
+        setDoc(doc(db, "otpUnlocks", docKey), {
           hash: otpHash,
           email: mail,
           expires: Date.now() + OTP_TTL_MS,
         }),
-        4000,
+        3000,
       );
-      const snap = await withTimeout(getDoc(doc(db, "authSecrets", key)), 4000);
+      const snap = await withTimeout(getDoc(doc(db, "authSecrets", docKey)), 3000);
       if (snap.exists()) {
         oldPassword = String(snap.data()?.authPassword || "");
       }
@@ -220,38 +220,82 @@ async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
   }
 
   try {
-    const cred = await withTimeout(
-      signInWithEmailAndPassword(fa, mail, oldPassword),
+    const signInRes = await withTimeout(
+      fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: mail,
+            password: oldPassword,
+            returnSecureToken: true,
+          }),
+        },
+      ),
       10000,
     );
-    await withTimeout(updatePassword(cred.user, newPassword), 10000);
-    saveRefreshToken(mail, cred.user);
-    await rememberAuthSecret(mail, newPassword);
-    try {
-      await signOut(fa);
-    } catch {
-      /* ignore */
+    const signInData = await signInRes.json();
+    if (signInData.error || !signInData.idToken) {
+      return {
+        ok: false,
+        reason: "missing-secret",
+        detail: signInData.error?.message || "Stored password no longer valid",
+      };
     }
-    try {
-      await Promise.all([
-        deleteDoc(doc(db, "passwordOtps", key)).catch(() => {}),
-        deleteDoc(doc(db, "otpUnlocks", key)).catch(() => {}),
-      ]);
-    } catch {
-      /* ignore */
+
+    const updateRes = await withTimeout(
+      fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken: signInData.idToken,
+            password: newPassword,
+            returnSecureToken: true,
+          }),
+        },
+      ),
+      10000,
+    );
+    const updateData = await updateRes.json();
+    if (updateData.error) {
+      return {
+        ok: false,
+        reason: "firebase",
+        detail: updateData.error?.message || "Could not update password",
+      };
+    }
+
+    const newRefresh = updateData.refreshToken || signInData.refreshToken;
+    if (newRefresh) {
+      try {
+        localStorage.setItem(REFRESH_PREFIX + mail, newRefresh);
+      } catch {
+        /* ignore */
+      }
+    }
+    saveLocalAuthPassword(mail, newPassword);
+
+    if (db) {
+      Promise.all([
+        deleteDoc(doc(db, "passwordOtps", docKey)).catch(() => {}),
+        deleteDoc(doc(db, "otpUnlocks", docKey)).catch(() => {}),
+        setDoc(doc(db, "authSecrets", docKey), {
+          email: mail,
+          authPassword: newPassword,
+          updatedAt: Date.now(),
+        }).catch(() => {}),
+      ]).catch(() => {});
     }
     return { ok: true };
   } catch (err) {
-    console.warn("Stored-secret password update failed:", err?.code || err?.message || err);
-    try {
-      await signOut(fa);
-    } catch {
-      /* ignore */
-    }
+    console.warn("Stored-secret password update failed:", err?.message || err);
     return {
       ok: false,
-      reason: mapFirebaseError(err?.code, err?.message),
-      detail: err?.code || err?.message || "",
+      reason: "network",
+      detail: err?.message || "Could not update password",
     };
   }
 }
@@ -599,7 +643,8 @@ export const auth = {
         const cred = await createUserWithEmailAndPassword(fa, mail, password);
         await updateProfile(cred.user, { displayName: display });
         saveRefreshToken(mail, cred.user);
-        await rememberAuthSecret(mail, password);
+        saveLocalAuthPassword(mail, password);
+        rememberAuthSecret(mail, password).catch(() => {});
         this.applySession({
           userId: cred.user.uid,
           username: display,
@@ -646,7 +691,8 @@ export const auth = {
         const fa = getFirebaseAuth();
         const cred = await signInWithEmailAndPassword(fa, mail, password);
         saveRefreshToken(mail, cred.user);
-        await rememberAuthSecret(mail, password);
+        saveLocalAuthPassword(mail, password);
+        rememberAuthSecret(mail, password).catch(() => {});
         const appliedPending = await applyPendingPasswordIfNeeded(mail, cred.user);
         this.applySession({
           userId: cred.user.uid,
