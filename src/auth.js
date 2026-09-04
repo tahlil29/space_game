@@ -240,12 +240,16 @@ async function emailOtpViaEmailJs(email, otp) {
         template_id: template,
         user_id: key,
         template_params: {
-          // Support common EmailJS template variable names
-          to_email: email,
-          email,
-          user_email: email,
+          // EmailJS built-in OTP template uses passcode + time
+          passcode: String(otp),
           otp: String(otp),
+          code: String(otp),
+          time: "15 minutes",
+          email,
+          to_email: email,
+          user_email: email,
           app_name: "Space Survival",
+          company_name: "Space Survival",
           message: `Your Space Survival code is ${otp}`,
         },
       }),
