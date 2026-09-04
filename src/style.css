@@ -291,6 +291,46 @@ body.menu-open canvas {
   background: rgba(255, 255, 255, 0.18);
 }
 
+.btn-google {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef7ff;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-family: Orbitron, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.btn-google:hover {
+  border-color: rgba(126, 185, 255, 0.55);
+  background: rgba(126, 185, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.google-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: #fff;
+  color: #4285f4;
+  font-family: "Exo 2", sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
 .profile-head {
   display: flex;
   align-items: center;

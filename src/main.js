@@ -1961,8 +1961,12 @@ document.getElementById("authForm").onsubmit = async (e) => {
       "Enable Email/Password (and Anonymous) in Firebase → Authentication → Sign-in method.",
     network: "Network error talking to Firebase.",
     domain:
-      "Add your Render domain in Firebase → Authentication → Settings → Authorized domains.",
+      "Add this site’s domain (and 127.0.0.1 if local) in Firebase → Authentication → Authorized domains.",
     rate: "Too many tries. Wait a minute and retry.",
+    "popup-closed": "Google sign-in was cancelled.",
+    "popup-blocked": "Allow popups for this site to use Google sign-in.",
+    "account-exists":
+      "That Google email already has an account with a different sign-in method.",
     firebase: "Firebase auth failed. Check Email/Password is enabled.",
   };
   try {
@@ -1982,20 +1986,41 @@ document.getElementById("authForm").onsubmit = async (e) => {
   }
 };
 
+function authFailureMessage(res, fallback) {
+  const reasons = {
+    "firebase-not-started":
+      "Open Firebase Console → Authentication → Get started.",
+    "firebase-disabled":
+      "Enable the matching sign-in method in Firebase Authentication.",
+    domain:
+      "Add this site’s domain (and 127.0.0.1 if local) in Firebase → Authorized domains.",
+    "popup-closed": "Google sign-in was cancelled.",
+    "popup-blocked": "Allow popups for this site to use Google sign-in.",
+    "account-exists":
+      "That Google email already has an account with a different sign-in method.",
+    network: "Network error talking to Firebase.",
+  };
+  const base = reasons[res.reason] || fallback;
+  return res.detail && !reasons[res.reason] ? `${base} (${res.detail})` : base;
+}
+
+document.getElementById("btnAuthGoogle").onclick = async () => {
+  const msg = document.getElementById("authMsg");
+  msg.textContent = "";
+  const res = await auth.loginWithGoogle();
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Google sign-in failed.");
+    return;
+  }
+  resumeAudio();
+  await enterAppAfterAuth();
+};
+
 document.getElementById("btnAuthGuest").onclick = async () => {
   const msg = document.getElementById("authMsg");
   const res = await auth.continueAsGuest();
   if (!res.ok) {
-    if (res.reason === "firebase-not-started") {
-      msg.textContent =
-        "Open Firebase Console → Authentication → Get started, then enable Anonymous.";
-    } else if (res.reason === "firebase-disabled") {
-      msg.textContent = "Enable Anonymous sign-in in Firebase Authentication.";
-    } else {
-      msg.textContent = res.detail
-        ? `Could not start guest session. (${res.detail})`
-        : "Could not start guest session.";
-    }
+    msg.textContent = authFailureMessage(res, "Could not start guest session.");
     return;
   }
   resumeAudio();

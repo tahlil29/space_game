@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 43127",
+    "dev": "vite --host localhost --port 43127",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 43127"
+    "preview": "vite preview --host localhost --port 43127"
   },
   "engines": {
     "node": "20.x"

@@ -18,12 +18,18 @@ Open the URL Vite prints (port `43127`).
 
 Enable these in Firebase Console (project `space-game-fc099`):
 
-1. **Authentication** → click **Get started** (required once), then enable **Email/Password** and **Anonymous**
+1. **Authentication** → click **Get started** (required once), then enable **Email/Password**, **Google**, and **Anonymous**
 2. **Firestore** — create DB, deploy rules from `firestore.rules`
 3. Web app config is already in `.env.local` / Render env vars
-4. **Authentication → Settings → Authorized domains** — add your Render host (e.g. `your-app.onrender.com`)
+4. **Authentication → Settings → Authorized domains** — add `127.0.0.1` for local testing and your Render host (e.g. `your-app.onrender.com`)
 
 If signup shows `CONFIGURATION_NOT_FOUND`, Auth was never started — step 1 above.
+
+### Accounts
+
+- **Login / Create account** — username + password (Email/Password)
+- **Continue with Google** — Google popup sign-in
+- **Continue as guest** — Anonymous Auth
 
 ```
 VITE_FIREBASE_API_KEY=...
@@ -36,11 +42,7 @@ VITE_FIREBASE_APP_ID=...
 
 Without env vars the game still runs with **local** accounts on the device.
 
-### Accounts
-
-- **Login / Create account** — username + password (stored via Firebase Auth)
-- **Continue as guest** — Anonymous Auth
-- Cloud doc: `users/{uid}` → shop, progress, settings, lastScore
+Cloud doc: `users/{uid}` → shop, progress, settings, lastScore
 
 ## Deploy on Render
 

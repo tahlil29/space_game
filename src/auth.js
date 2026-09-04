@@ -3,11 +3,15 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInAnonymously,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut,
   updateProfile,
 } from "firebase/auth";
 import { getFirebaseAuth, isFirebaseConfigured, firebaseConfigStatus } from "./firebase.js";
 import { setActiveUserId, migrateLegacyToGuest, userKey } from "./storage.js";
+
+const googleProvider = new GoogleAuthProvider();
 
 const AUTH_KEY = "space-survival-auth";
 
@@ -86,7 +90,22 @@ function mapFirebaseError(code, message = "") {
   if (code === "auth/unauthorized-domain") return "domain";
   if (code === "auth/too-many-requests") return "rate";
   if (code === "auth/admin-restricted-operation") return "firebase-disabled";
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+    return "popup-closed";
+  }
+  if (code === "auth/popup-blocked") return "popup-blocked";
+  if (code === "auth/account-exists-with-different-credential") {
+    return "account-exists";
+  }
   return "firebase";
+}
+
+function displayNameFromUser(user, fallback = "Pilot") {
+  if (user?.displayName) return user.displayName;
+  if (user?.isAnonymous) return "Guest";
+  const email = user?.email || "";
+  const fromEmail = email.split("@")[0];
+  return fromEmail || fallback;
 }
 
 export const auth = {
@@ -133,11 +152,7 @@ export const auth = {
           if (user) {
             this.applySession({
               userId: user.uid,
-              username:
-                user.displayName ||
-                (user.isAnonymous
-                  ? "Guest"
-                  : (user.email || "").split("@")[0] || "Pilot"),
+              username: displayNameFromUser(user),
               isGuest: Boolean(user.isAnonymous),
               backend: "firebase",
             });
@@ -250,6 +265,30 @@ export const auth = {
     saveAuthDb(db);
     this.applySession(session);
     return { ok: true };
+  },
+
+  async loginWithGoogle() {
+    if (!isFirebaseConfigured()) {
+      return { ok: false, reason: "firebase-disabled" };
+    }
+    try {
+      const fa = getFirebaseAuth();
+      const cred = await signInWithPopup(fa, googleProvider);
+      this.applySession({
+        userId: cred.user.uid,
+        username: displayNameFromUser(cred.user),
+        isGuest: false,
+        backend: "firebase",
+      });
+      return { ok: true };
+    } catch (err) {
+      console.warn("Firebase Google sign-in failed:", err?.code, err?.message);
+      return {
+        ok: false,
+        reason: mapFirebaseError(err?.code, err?.message),
+        detail: err?.code || err?.message || "",
+      };
+    }
   },
 
   async continueAsGuest() {
