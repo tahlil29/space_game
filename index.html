@@ -72,48 +72,94 @@
     <div class="menu-card auth-card arcade-panel">
       <div class="panel-corners" aria-hidden="true"></div>
       <h1 class="title auth-title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
-      <p class="subtitle auth-sub">Sign in to save progress, or play as guest.</p>
       <p class="auth-backend" id="authBackend">Checking save backend…</p>
 
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-auth-tab="login">LOGIN</button>
-        <button type="button" class="auth-tab" data-auth-tab="register">CREATE ACCOUNT</button>
-      </div>
-
-      <form id="authForm" class="auth-form" autocomplete="on">
-        <label class="auth-field">
-          <span>EMAIL</span>
-          <input id="authEmail" name="email" type="email" maxlength="120" required placeholder="pilot@email.com" autocomplete="email" />
-        </label>
-        <label class="auth-field">
-          <span>PASSWORD</span>
-          <input id="authPassword" name="password" type="password" maxlength="64" required placeholder="••••••••" autocomplete="current-password" />
-        </label>
-        <p class="auth-msg" id="authMsg"></p>
-        <button id="btnAuthSubmit" class="btn btn-primary btn-cta" type="submit">
-          <span class="btn-main">LOGIN</span>
+      <!-- LOGIN -->
+      <div id="authViewLogin" class="auth-view">
+        <h2 class="auth-heading">Log in</h2>
+        <p class="auth-lede">to save progress across devices</p>
+        <form id="loginForm" class="auth-form" autocomplete="on">
+          <label class="auth-field">
+            <span>Email</span>
+            <input id="loginEmail" name="email" type="email" maxlength="120" required placeholder="pilot@email.com" autocomplete="email" />
+          </label>
+          <label class="auth-field">
+            <span>Password</span>
+            <input id="loginPassword" name="password" type="password" maxlength="64" required placeholder="••••••••" autocomplete="current-password" />
+          </label>
+          <button id="btnForgotOpen" class="auth-link auth-link-left" type="button">Forgot password?</button>
+          <p class="auth-msg" id="loginMsg"></p>
+          <button class="btn btn-primary btn-cta" type="submit">
+            <span class="btn-main">Log in →</span>
+          </button>
+        </form>
+        <div class="auth-divider"><span>OR</span></div>
+        <button id="btnLoginGoogle" class="btn btn-google" type="button">
+          <span class="google-mark" aria-hidden="true">G</span>
+          Continue with Google
         </button>
-      </form>
-
-      <button id="btnForgotOpen" class="auth-link" type="button">FORGOT PASSWORD?</button>
-
-      <div id="authForgotPanel" class="auth-forgot" hidden>
-        <p class="auth-forgot-title">Reset via email</p>
-        <label class="auth-field">
-          <span>EMAIL</span>
-          <input id="forgotEmail" type="email" maxlength="120" placeholder="pilot@email.com" autocomplete="email" />
-        </label>
-        <p class="auth-msg" id="forgotMsg"></p>
-        <button id="btnForgotSend" class="btn btn-secondary" type="button">SEND RESET LINK</button>
-        <button id="btnForgotBack" class="auth-link" type="button">BACK TO LOGIN</button>
+        <button id="btnAuthGuest" class="btn btn-secondary" type="button">Continue as guest</button>
+        <p class="auth-switch">
+          Don’t have an account?
+          <button id="btnGoSignup" class="auth-text-btn" type="button">Sign up now!</button>
+        </p>
       </div>
 
-      <div class="auth-divider"><span>OR</span></div>
-      <button id="btnAuthGoogle" class="btn btn-google" type="button">
-        <span class="google-mark" aria-hidden="true">G</span>
-        CONTINUE WITH GOOGLE
-      </button>
-      <button id="btnAuthGuest" class="btn btn-secondary" type="button">CONTINUE AS GUEST</button>
+      <!-- SIGN UP -->
+      <div id="authViewSignup" class="auth-view" hidden>
+        <h2 class="auth-heading">Sign up</h2>
+        <p class="auth-lede">create an account with email or Google</p>
+        <form id="signupForm" class="auth-form" autocomplete="on">
+          <label class="auth-field">
+            <span>Email</span>
+            <input id="signupEmail" name="email" type="email" maxlength="120" required placeholder="pilot@email.com" autocomplete="email" />
+          </label>
+          <label class="auth-field">
+            <span>Password</span>
+            <input id="signupPassword" name="password" type="password" maxlength="64" required placeholder="min 6 characters" autocomplete="new-password" />
+          </label>
+          <p class="auth-msg" id="signupMsg"></p>
+          <button class="btn btn-primary btn-cta" type="submit">
+            <span class="btn-main">Create account →</span>
+          </button>
+        </form>
+        <div class="auth-divider"><span>OR</span></div>
+        <button id="btnSignupGoogle" class="btn btn-google" type="button">
+          <span class="google-mark" aria-hidden="true">G</span>
+          Sign up with Google
+        </button>
+        <p class="auth-switch">
+          Already have an account?
+          <button id="btnGoLogin" class="auth-text-btn" type="button">Log in</button>
+        </p>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div id="authViewForgot" class="auth-view" hidden>
+        <h2 class="auth-heading">Reset password</h2>
+        <p class="auth-lede" id="forgotLede">enter your email to get a one-time code</p>
+        <div id="forgotStepEmail" class="auth-form">
+          <label class="auth-field">
+            <span>Email</span>
+            <input id="forgotEmail" type="email" maxlength="120" placeholder="pilot@email.com" autocomplete="email" />
+          </label>
+          <p class="auth-msg" id="forgotMsg"></p>
+          <button id="btnForgotSend" class="btn btn-primary" type="button">Send code</button>
+        </div>
+        <div id="forgotStepOtp" class="auth-form" hidden>
+          <label class="auth-field">
+            <span>Email code (OTP)</span>
+            <input id="forgotOtp" type="text" inputmode="numeric" maxlength="64" placeholder="6-digit code" autocomplete="one-time-code" />
+          </label>
+          <label class="auth-field">
+            <span>New password</span>
+            <input id="forgotPassword" type="password" maxlength="64" placeholder="min 6 characters" autocomplete="new-password" />
+          </label>
+          <p class="auth-msg" id="forgotOtpMsg"></p>
+          <button id="btnForgotReset" class="btn btn-primary" type="button">Set new password</button>
+        </div>
+        <button id="btnForgotBack" class="auth-link" type="button">← Back to login</button>
+      </div>
     </div>
   </div>
 
@@ -122,38 +168,29 @@
     <div class="screen-bg"></div>
     <div class="menu-fx" aria-hidden="true"></div>
 
-    <aside id="profilePanel" class="profile-panel" aria-label="Pilot profile">
-      <div class="profile-head">
+    <header id="profilePanel" class="home-topbar" aria-label="Pilot profile">
+      <div class="home-pilot">
         <span class="profile-avatar" aria-hidden="true"></span>
-        <div>
+        <div class="home-pilot-text">
           <div class="profile-title" id="profileRole">PILOT</div>
           <div class="profile-name" id="profileName">Commander</div>
         </div>
       </div>
-      <div class="profile-grid">
-        <div class="profile-stat">
-          <span>COINS</span>
-          <b id="profileCoins">0</b>
-        </div>
-        <div class="profile-stat">
-          <span>BEST</span>
-          <b id="profileBest">0</b>
-        </div>
-        <div class="profile-stat">
-          <span>SCORE</span>
-          <b id="profileScore">0</b>
-        </div>
-        <div class="profile-stat">
-          <span>PROGRESS</span>
-          <b id="profileProgress">1/10</b>
-        </div>
+      <div class="home-top-stats">
+        <div class="home-chip"><span>COINS</span><b id="profileCoins">0</b></div>
+        <div class="home-chip"><span>BEST</span><b id="profileBest">0</b></div>
       </div>
-      <button id="btnProfileLogout" class="btn btn-ghost profile-logout" type="button">SWITCH ACCOUNT</button>
-    </aside>
+      <button id="btnProfileLogout" class="btn btn-ghost home-switch" type="button">Switch</button>
+    </header>
 
     <div class="menu-card home-card arcade-panel">
       <div class="panel-corners" aria-hidden="true"></div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
+      <p class="home-substats">
+        Score <b id="profileScore">0</b>
+        <span class="dot">·</span>
+        Progress <b id="profileProgress">1/10</b>
+      </p>
       <div class="btn-stack home-actions">
         <button id="btnPlay" class="btn btn-primary btn-cta home-btn" type="button">
           <span class="btn-icon" aria-hidden="true">▶</span>

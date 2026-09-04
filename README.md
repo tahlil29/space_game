@@ -25,9 +25,9 @@ Enable these in Firebase Console (project `space-game-fc099`):
 
 ### Accounts
 
-- **Login / Create account** — email + password
-- **Forgot password?** — Firebase emails a reset link to that address
-- **Continue with Google** / **Continue as guest**
+- **Log in** — email + password, Google, or guest
+- **Sign up now!** — email + password or Google
+- **Forgot password?** — email → OTP → new password (opens its own screen)
 
 ```
 VITE_FIREBASE_API_KEY=...
@@ -39,6 +39,8 @@ VITE_FIREBASE_APP_ID=...
 ```
 
 Without env vars the game still runs with **local** accounts on the device.
+
+Redeploy Firestore rules from `firestore.rules` (includes `passwordOtps`).
 
 Cloud doc: `users/{uid}` → shop, progress, settings, lastScore
 

@@ -101,7 +101,8 @@ body.menu-open canvas {
 }
 
 .home-card {
-  width: min(480px, 94vw);
+  width: min(440px, 94vw);
+  margin-top: 72px;
 }
 
 .home-actions {
@@ -159,23 +160,85 @@ body.menu-open canvas {
   font-size: 16px;
 }
 
-.profile-panel {
+.home-topbar {
   position: fixed;
-  top: max(14px, env(safe-area-inset-top));
-  right: max(14px, env(safe-area-inset-right));
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 12;
-  width: min(220px, 46vw);
-  padding: 12px;
+  width: min(440px, 94vw);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
   border-radius: 16px;
-  border: 1px solid rgba(126, 185, 255, 0.35);
+  border: 1px solid rgba(126, 185, 255, 0.28);
   background: linear-gradient(165deg, rgba(12, 22, 48, 0.92), rgba(5, 10, 22, 0.94));
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(70, 140, 255, 0.12);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
-  text-align: left;
 }
 
-#screen-home:not(.active) .profile-panel {
+#screen-home:not(.active) .home-topbar {
   display: none;
+}
+
+.home-pilot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.home-pilot-text {
+  min-width: 0;
+}
+
+.home-top-stats {
+  display: flex;
+  gap: 6px;
+}
+
+.home-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: Orbitron, sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.home-chip b {
+  font-size: 12px;
+  color: #ffd56b;
+}
+
+.home-switch {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.home-substats {
+  margin: -4px 0 14px;
+  font-family: Orbitron, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.home-substats b {
+  color: #e8f4ff;
+}
+
+.home-substats .dot {
+  margin: 0 6px;
+  opacity: 0.5;
 }
 
 .profile-logout {
@@ -187,30 +250,65 @@ body.menu-open canvas {
 }
 
 .auth-card {
-  width: min(440px, 94vw);
+  width: min(400px, 94vw);
 }
 
 .auth-title {
-  font-size: clamp(34px, 8vw, 56px);
-}
-
-.auth-sub {
-  margin-bottom: 8px;
+  font-size: clamp(28px, 7vw, 44px);
+  margin-bottom: 4px;
 }
 
 .auth-backend {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   font-family: Orbitron, sans-serif;
   font-size: 10px;
   letter-spacing: 0.12em;
   opacity: 0.55;
 }
 
+.auth-heading {
+  margin: 0;
+  font-family: Orbitron, sans-serif;
+  font-size: clamp(22px, 5vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.auth-lede {
+  margin: 4px 0 16px;
+  text-align: left;
+  opacity: 0.65;
+  font-size: 14px;
+}
+
+.auth-link-left {
+  margin: 0;
+  text-align: left;
+  width: auto;
+  padding: 0;
+}
+
+.auth-switch {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.auth-text-btn {
+  border: 0;
+  background: transparent;
+  color: #eef7ff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0 2px;
+}
+
 .auth-tabs {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 14px;
+  display: none;
 }
 
 .auth-tab {
@@ -1083,23 +1181,21 @@ body.menu-open canvas {
 }
 
 @media (max-width: 620px) {
-  .profile-panel {
-    width: min(168px, 44vw);
-    padding: 8px;
-    top: max(10px, env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
+  .home-topbar {
+    width: min(94vw, 440px);
+    padding: 6px 8px;
+  }
+
+  .home-chip {
+    padding: 3px 6px;
   }
 
   .profile-name {
     font-size: 11px;
   }
 
-  .profile-stat b {
-    font-size: 11px;
-  }
-
   .home-card {
-    margin-top: 56px;
+    margin-top: 64px;
   }
 
   .shop-item {

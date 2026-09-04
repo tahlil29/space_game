@@ -3,17 +3,29 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
   signInAnonymously,
   signInWithPopup,
   GoogleAuthProvider,
   updateProfile,
   signOut,
 } from "firebase/auth";
-import { getFirebaseAuth, isFirebaseConfigured, firebaseConfigStatus } from "./firebase.js";
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import {
+  getFirebaseAuth,
+  getFirebaseDb,
+  isFirebaseConfigured,
+  firebaseConfigStatus,
+} from "./firebase.js";
 import { setActiveUserId, migrateLegacyToGuest, userKey } from "./storage.js";
 
 const googleProvider = new GoogleAuthProvider();
 const AUTH_KEY = "space-survival-auth";
+const PENDING_RESET_KEY = "space-survival-pending-reset";
+const OTP_TTL_MS = 10 * 60 * 1000;
+
+let pendingOtp = null;
 
 function loadAuthDb() {
   try {
@@ -32,10 +44,7 @@ function loadAuthDb() {
 function saveAuthDb(db) {
   localStorage.setItem(
     AUTH_KEY,
-    JSON.stringify({
-      accounts: db.accounts,
-      session: db.session,
-    }),
+    JSON.stringify({ accounts: db.accounts, session: db.session }),
   );
 }
 
@@ -47,6 +56,16 @@ function randomSalt() {
 async function hashPassword(password, salt) {
   const data = new TextEncoder().encode(`${salt}:${password}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function hashValue(value) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(String(value)),
+  );
   return [...new Uint8Array(digest)]
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -65,6 +84,14 @@ function displayNameFromEmail(email) {
   return local.replace(/[^a-z0-9_\-]/gi, "").slice(0, 20) || "pilot";
 }
 
+function emailDocKey(email) {
+  return normalizeEmail(email).replace(/[^a-z0-9]/g, "_").slice(0, 80);
+}
+
+function makeOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
 function mapFirebaseError(code, message = "") {
   const msg = String(message || "");
   if (
@@ -74,14 +101,16 @@ function mapFirebaseError(code, message = "") {
     return "firebase-not-started";
   }
   if (code === "auth/email-already-in-use") return "exists";
-  if (code === "auth/invalid-email") return "email";
-  if (code === "auth/missing-email") return "email";
+  if (code === "auth/invalid-email" || code === "auth/missing-email") return "email";
   if (code === "auth/weak-password" || code === "auth/invalid-password") {
     return "password";
   }
   if (code === "auth/user-not-found") return "missing";
   if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
     return "credentials";
+  }
+  if (code === "auth/expired-action-code" || code === "auth/invalid-action-code") {
+    return "otp";
   }
   if (code === "auth/operation-not-allowed") return "firebase-disabled";
   if (code === "auth/network-request-failed") return "network";
@@ -104,6 +133,51 @@ function displayNameFromUser(user, fallback = "Pilot") {
   if (user?.isAnonymous) return "Guest";
   if (user?.email) return displayNameFromEmail(user.email);
   return fallback;
+}
+
+async function emailOtpViaEmailJs(email, otp) {
+  const service = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const template = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const key = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+  if (!service || !template || !key) return false;
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id: service,
+      template_id: template,
+      user_id: key,
+      template_params: {
+        to_email: email,
+        otp,
+        app_name: "Space Survival",
+      },
+    }),
+  });
+  return res.ok;
+}
+
+function savePendingReset(email, password) {
+  sessionStorage.setItem(
+    PENDING_RESET_KEY,
+    JSON.stringify({ email: normalizeEmail(email), password, at: Date.now() }),
+  );
+}
+
+function loadPendingReset() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_RESET_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data?.password || Date.now() - (data.at || 0) > OTP_TTL_MS) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingReset() {
+  sessionStorage.removeItem(PENDING_RESET_KEY);
 }
 
 export const auth = {
@@ -264,39 +338,6 @@ export const auth = {
     return { ok: true };
   },
 
-  async sendPasswordReset(email) {
-    const mail = normalizeEmail(email);
-    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
-
-    if (isFirebaseConfigured()) {
-      try {
-        await sendPasswordResetEmail(getFirebaseAuth(), mail);
-        return { ok: true };
-      } catch (err) {
-        console.warn("Password reset email failed:", err?.code, err?.message);
-        // Avoid account enumeration: treat missing user like success for UX,
-        // but surface real config errors.
-        const reason = mapFirebaseError(err?.code, err?.message);
-        if (reason === "missing" || reason === "credentials") {
-          return { ok: true };
-        }
-        return {
-          ok: false,
-          reason,
-          detail: err?.code || err?.message || "",
-        };
-      }
-    }
-
-    const db = loadAuthDb();
-    if (!db.accounts[mail]) return { ok: false, reason: "missing" };
-    return {
-      ok: false,
-      reason: "local-reset",
-      detail: "Local mode cannot email a reset link. Create a new local account or enable Firebase.",
-    };
-  },
-
   async loginWithGoogle() {
     if (!isFirebaseConfigured()) {
       return { ok: false, reason: "firebase-disabled" };
@@ -321,6 +362,184 @@ export const auth = {
     }
   },
 
+  async sendPasswordOtp(email) {
+    const mail = normalizeEmail(email);
+    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
+
+    const otp = makeOtp();
+    const hash = await hashValue(`${mail}:${otp}`);
+    const expires = Date.now() + OTP_TTL_MS;
+
+    if (isFirebaseConfigured()) {
+      try {
+        const db = getFirebaseDb();
+        if (db) {
+          await setDoc(doc(db, "passwordOtps", emailDocKey(mail)), {
+            hash,
+            expires,
+            email: mail,
+            createdAt: serverTimestamp(),
+          });
+        }
+        pendingOtp = { email: mail, hash, expires };
+        const emailed = await emailOtpViaEmailJs(mail, otp).catch(() => false);
+        try {
+          await sendPasswordResetEmail(getFirebaseAuth(), mail, {
+            url: `${window.location.origin}${window.location.pathname}`,
+            handleCodeInApp: false,
+          });
+        } catch (err) {
+          const reason = mapFirebaseError(err?.code, err?.message);
+          if (!emailed && reason !== "missing" && reason !== "credentials") {
+            return {
+              ok: false,
+              reason,
+              detail: err?.code || err?.message || "",
+            };
+          }
+        }
+        return { ok: true, emailed, demoOtp: emailed ? null : otp };
+      } catch (err) {
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code, err?.message),
+          detail: err?.code || err?.message || "",
+        };
+      }
+    }
+
+    const db = loadAuthDb();
+    if (!db.accounts[mail]) return { ok: false, reason: "missing" };
+    pendingOtp = { email: mail, hash, expires, local: true };
+    return { ok: true, emailed: false, demoOtp: otp };
+  },
+
+  async resetWithOtp(email, otp, newPassword) {
+    const mail = normalizeEmail(email);
+    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
+    if (!newPassword || newPassword.length < 6) return { ok: false, reason: "password" };
+    const code = String(otp || "").trim();
+    if (!code) return { ok: false, reason: "otp" };
+
+    // Long Firebase oobCode from email link → apply password directly
+    if (isFirebaseConfigured() && code.length >= 20) {
+      try {
+        await verifyPasswordResetCode(getFirebaseAuth(), code);
+        await confirmPasswordReset(getFirebaseAuth(), code, newPassword);
+        clearPendingReset();
+        pendingOtp = null;
+        return { ok: true, needLogin: true };
+      } catch (err) {
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code, err?.message),
+          detail: err?.code || err?.message || "",
+        };
+      }
+    }
+
+    if (!/^\d{6}$/.test(code)) return { ok: false, reason: "otp" };
+    const expectHash = await hashValue(`${mail}:${code}`);
+
+    if (isFirebaseConfigured()) {
+      try {
+        let record = pendingOtp?.email === mail ? pendingOtp : null;
+        const db = getFirebaseDb();
+        if (db) {
+          const snap = await getDoc(doc(db, "passwordOtps", emailDocKey(mail)));
+          if (snap.exists()) record = { ...snap.data(), email: mail };
+        }
+        if (!record || record.hash !== expectHash) return { ok: false, reason: "otp" };
+        if (record.expires && Date.now() > Number(record.expires)) {
+          return { ok: false, reason: "otp" };
+        }
+
+        // OTP ok — finish via Firebase email action link (oobCode) using saved password
+        savePendingReset(mail, newPassword);
+        if (db) {
+          try {
+            await deleteDoc(doc(db, "passwordOtps", emailDocKey(mail)));
+          } catch {
+            /* ignore */
+          }
+        }
+        pendingOtp = null;
+        return { ok: true, openEmailLink: true };
+      } catch (err) {
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code, err?.message),
+          detail: err?.code || err?.message || "",
+        };
+      }
+    }
+
+    if (!pendingOtp || pendingOtp.email !== mail || pendingOtp.hash !== expectHash) {
+      return { ok: false, reason: "otp" };
+    }
+    if (Date.now() > pendingOtp.expires) return { ok: false, reason: "otp" };
+
+    const db = loadAuthDb();
+    const account = db.accounts[mail];
+    if (!account) return { ok: false, reason: "missing" };
+    const salt = randomSalt();
+    account.salt = salt;
+    account.hash = await hashPassword(newPassword, salt);
+    const display = displayNameFromEmail(mail);
+    const session = {
+      userId: `user_${display}`,
+      username: display,
+      email: mail,
+      isGuest: false,
+      backend: "local",
+    };
+    db.session = session;
+    saveAuthDb(db);
+    this.applySession(session);
+    pendingOtp = null;
+    return { ok: true };
+  },
+
+  getResetOobFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oobCode")) return params.get("oobCode");
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (hash.get("oobCode")) return hash.get("oobCode");
+    return null;
+  },
+
+  async completeResetFromEmailLink() {
+    const oobCode = this.getResetOobFromUrl();
+    if (!oobCode || !isFirebaseConfigured()) return { ok: false };
+    const pending = loadPendingReset();
+    const password = pending?.password;
+    if (!password) {
+      return { ok: false, reason: "need-password", oobCode };
+    }
+    try {
+      await verifyPasswordResetCode(getFirebaseAuth(), oobCode);
+      await confirmPasswordReset(getFirebaseAuth(), oobCode, password);
+      clearPendingReset();
+      this.clearResetUrl();
+      return { ok: true, needLogin: true, email: pending.email };
+    } catch (err) {
+      return {
+        ok: false,
+        reason: mapFirebaseError(err?.code, err?.message),
+        detail: err?.code || err?.message || "",
+        oobCode,
+      };
+    }
+  },
+
+  clearResetUrl() {
+    const url = new URL(window.location.href);
+    ["oobCode", "mode", "apiKey", "lang", "continueUrl"].forEach((k) =>
+      url.searchParams.delete(k),
+    );
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  },
+
   async continueAsGuest() {
     if (isFirebaseConfigured()) {
       try {
@@ -334,7 +553,6 @@ export const auth = {
         });
         return { ok: true };
       } catch (err) {
-        console.warn("Firebase guest failed:", err?.code, err?.message);
         return {
           ok: false,
           reason: mapFirebaseError(err?.code, err?.message),
@@ -342,7 +560,6 @@ export const auth = {
         };
       }
     }
-
     const session = {
       userId: "guest",
       username: "Guest",
@@ -354,6 +571,7 @@ export const auth = {
   },
 
   async logout() {
+    pendingOtp = null;
     if (isFirebaseConfigured()) {
       try {
         await signOut(getFirebaseAuth());

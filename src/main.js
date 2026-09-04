@@ -912,27 +912,27 @@ function goHome() {
   showScreen("home");
 }
 
+function showAuthView(view) {
+  const login = document.getElementById("authViewLogin");
+  const signup = document.getElementById("authViewSignup");
+  const forgot = document.getElementById("authViewForgot");
+  if (login) login.hidden = view !== "login";
+  if (signup) signup.hidden = view !== "signup";
+  if (forgot) forgot.hidden = view !== "forgot";
+}
+
 function openAuth(message = "") {
   gameState = "auth";
   authTab = "login";
   showHud(false);
-  document.querySelectorAll(".auth-tab").forEach((t) => {
-    t.classList.toggle("active", t.dataset.authTab === authTab);
-  });
-  const submit = document.querySelector("#btnAuthSubmit .btn-main");
-  if (submit) submit.textContent = "LOGIN";
-  const form = document.getElementById("authForm");
-  if (form) form.hidden = false;
-  const forgotOpen = document.getElementById("btnForgotOpen");
-  if (forgotOpen) forgotOpen.hidden = false;
-  const forgotPanel = document.getElementById("authForgotPanel");
-  if (forgotPanel) forgotPanel.hidden = true;
-  const tabs = document.querySelector(".auth-tabs");
-  if (tabs) tabs.hidden = false;
-  const msg = document.getElementById("authMsg");
-  if (msg) msg.textContent = message;
-  const emailInput = document.getElementById("authEmail");
-  const passInput = document.getElementById("authPassword");
+  showAuthView("login");
+  const msg = document.getElementById("loginMsg");
+  if (msg) {
+    msg.textContent = message;
+    msg.classList.toggle("auth-msg-ok", Boolean(message) && !/fail|wrong|error/i.test(message));
+  }
+  const emailInput = document.getElementById("loginEmail");
+  const passInput = document.getElementById("loginPassword");
   if (emailInput) emailInput.value = "";
   if (passInput) passInput.value = "";
   showScreen("auth");
@@ -948,7 +948,7 @@ async function enterAppAfterAuth() {
 async function logoutToAuth() {
   await auth.logout();
   loadUserData();
-  openAuth("Signed out. Login, create an account, or continue as guest.");
+  openAuth("Signed out. Log in or sign up to continue.");
 }
 
 function openSettings(from) {
@@ -1945,14 +1945,14 @@ const AUTH_REASONS = {
   email: "Enter a valid email address.",
   password: "Password must be at least 6 characters.",
   credentials: "Wrong email or password.",
-  exists: "That email already has an account. Try login instead.",
-  missing: "No account found for that email. Create an account first.",
-  "local-reset":
-    "Local mode cannot email a reset link. Enable Firebase or create a new account.",
+  exists: "That email already has an account. Try log in instead.",
+  missing: "No account found for that email.",
+  otp: "Invalid or expired code. Request a new one.",
+  "need-password": "Enter a new password to finish reset.",
   "firebase-not-started":
     "Open Firebase Console → Authentication → Get started, then enable Email/Password.",
   "firebase-disabled":
-    "Enable Email/Password (and Anonymous/Google if used) in Firebase → Sign-in method.",
+    "Enable Email/Password (and Google/Anonymous if used) in Firebase → Sign-in method.",
   network: "Network error talking to Firebase.",
   domain:
     "Add this site’s domain in Firebase → Authentication → Authorized domains.",
@@ -1966,74 +1966,92 @@ const AUTH_REASONS = {
 
 function authFailureMessage(res, fallback) {
   const base = AUTH_REASONS[res.reason] || fallback;
-  if (res.reason === "local-reset" && res.detail) return res.detail;
   if (res.detail && !AUTH_REASONS[res.reason]) return `${base} (${res.detail})`;
   return base;
 }
 
-function setAuthMode(mode) {
-  authTab = mode;
-  document.querySelectorAll(".auth-tab").forEach((t) => {
-    t.classList.toggle("active", t.dataset.authTab === authTab);
-  });
-  const submit = document.querySelector("#btnAuthSubmit .btn-main");
-  if (submit) submit.textContent = authTab === "register" ? "CREATE ACCOUNT" : "LOGIN";
-  const pass = document.getElementById("authPassword");
-  if (pass) {
-    pass.autocomplete = authTab === "register" ? "new-password" : "current-password";
+async function handleGoogle(msgEl) {
+  msgEl.textContent = "";
+  const res = await auth.loginWithGoogle();
+  if (!res.ok) {
+    msgEl.textContent = authFailureMessage(res, "Google sign-in failed.");
+    return;
   }
-  document.getElementById("authMsg").textContent = "";
+  resumeAudio();
+  await enterAppAfterAuth();
 }
 
-function showAuthMain() {
-  document.getElementById("authForm").hidden = false;
-  document.getElementById("btnForgotOpen").hidden = false;
-  document.getElementById("authForgotPanel").hidden = true;
-  document.querySelector(".auth-tabs").hidden = false;
-}
-
-function showForgotPanel() {
-  document.getElementById("authForm").hidden = true;
-  document.getElementById("btnForgotOpen").hidden = true;
-  document.getElementById("authForgotPanel").hidden = false;
-  document.querySelector(".auth-tabs").hidden = true;
+function openForgotView() {
+  showAuthView("forgot");
+  document.getElementById("forgotStepEmail").hidden = false;
+  document.getElementById("forgotStepOtp").hidden = true;
+  document.getElementById("forgotLede").textContent =
+    "enter your email to get a one-time code";
   const msg = document.getElementById("forgotMsg");
   msg.textContent = "";
   msg.classList.remove("auth-msg-ok");
-  const email = document.getElementById("authEmail")?.value || "";
-  document.getElementById("forgotEmail").value = email;
+  document.getElementById("forgotOtpMsg").textContent = "";
+  document.getElementById("forgotOtp").value = "";
+  document.getElementById("forgotPassword").value = "";
+  const fromLogin = document.getElementById("loginEmail")?.value || "";
+  document.getElementById("forgotEmail").value = fromLogin;
 }
 
-document.querySelectorAll(".auth-tab").forEach((btn) => {
-  btn.onclick = () => setAuthMode(btn.dataset.authTab);
-});
+document.getElementById("btnGoSignup").onclick = () => {
+  showAuthView("signup");
+  document.getElementById("signupMsg").textContent = "";
+};
+document.getElementById("btnGoLogin").onclick = () => showAuthView("login");
+document.getElementById("btnForgotOpen").onclick = () => openForgotView();
+document.getElementById("btnForgotBack").onclick = () => showAuthView("login");
 
-document.getElementById("authForm").onsubmit = async (e) => {
+document.getElementById("loginForm").onsubmit = async (e) => {
   e.preventDefault();
-  const email = document.getElementById("authEmail").value;
-  const password = document.getElementById("authPassword").value;
-  const msg = document.getElementById("authMsg");
+  const msg = document.getElementById("loginMsg");
+  msg.classList.remove("auth-msg-ok");
   msg.textContent = "";
-  try {
-    const res =
-      authTab === "register"
-        ? await auth.register(email, password)
-        : await auth.login(email, password);
-    if (!res.ok) {
-      msg.textContent = authFailureMessage(res, "Could not continue.");
-      return;
-    }
-    resumeAudio();
-    await enterAppAfterAuth();
-  } catch {
-    msg.textContent = "Auth failed on this device.";
+  const res = await auth.login(
+    document.getElementById("loginEmail").value,
+    document.getElementById("loginPassword").value,
+  );
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Could not log in.");
+    return;
   }
+  resumeAudio();
+  await enterAppAfterAuth();
 };
 
-document.getElementById("btnForgotOpen").onclick = () => showForgotPanel();
-document.getElementById("btnForgotBack").onclick = () => {
-  showAuthMain();
-  setAuthMode("login");
+document.getElementById("signupForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("signupMsg");
+  msg.textContent = "";
+  const res = await auth.register(
+    document.getElementById("signupEmail").value,
+    document.getElementById("signupPassword").value,
+  );
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Could not create account.");
+    return;
+  }
+  resumeAudio();
+  await enterAppAfterAuth();
+};
+
+document.getElementById("btnLoginGoogle").onclick = () =>
+  handleGoogle(document.getElementById("loginMsg"));
+document.getElementById("btnSignupGoogle").onclick = () =>
+  handleGoogle(document.getElementById("signupMsg"));
+
+document.getElementById("btnAuthGuest").onclick = async () => {
+  const msg = document.getElementById("loginMsg");
+  const res = await auth.continueAsGuest();
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Could not start guest session.");
+    return;
+  }
+  resumeAudio();
+  await enterAppAfterAuth();
 };
 
 document.getElementById("btnForgotSend").onclick = async () => {
@@ -2041,32 +2059,50 @@ document.getElementById("btnForgotSend").onclick = async () => {
   msg.classList.remove("auth-msg-ok");
   msg.textContent = "";
   const email = document.getElementById("forgotEmail").value;
-  const res = await auth.sendPasswordReset(email);
+  const res = await auth.sendPasswordOtp(email);
   if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not send reset email.");
+    msg.textContent = authFailureMessage(res, "Could not send code.");
     return;
   }
-  msg.textContent = "If that email has an account, a reset link is on the way. Check your inbox.";
-  msg.classList.add("auth-msg-ok");
+  document.getElementById("forgotStepEmail").hidden = true;
+  document.getElementById("forgotStepOtp").hidden = false;
+  document.getElementById("forgotLede").textContent =
+    "enter the code and choose a new password";
+  const otpMsg = document.getElementById("forgotOtpMsg");
+  if (res.demoOtp) {
+    otpMsg.textContent = `Your code is ${res.demoOtp} (also check email for a Firebase reset link).`;
+    otpMsg.classList.add("auth-msg-ok");
+  } else if (res.emailed) {
+    otpMsg.textContent = "Code sent to your email. Enter it below.";
+    otpMsg.classList.add("auth-msg-ok");
+  } else {
+    otpMsg.textContent = "Check your email for the code, then set a new password.";
+    otpMsg.classList.add("auth-msg-ok");
+  }
 };
 
-document.getElementById("btnAuthGoogle").onclick = async () => {
-  const msg = document.getElementById("authMsg");
-  msg.textContent = "";
-  const res = await auth.loginWithGoogle();
+document.getElementById("btnForgotReset").onclick = async () => {
+  const msg = document.getElementById("forgotOtpMsg");
+  msg.classList.remove("auth-msg-ok");
+  const email = document.getElementById("forgotEmail").value;
+  const otp = document.getElementById("forgotOtp").value;
+  const password = document.getElementById("forgotPassword").value;
+  const res = await auth.resetWithOtp(email, otp, password);
   if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Google sign-in failed.");
+    msg.textContent = authFailureMessage(res, "Could not reset password.");
     return;
   }
-  resumeAudio();
-  await enterAppAfterAuth();
-};
-
-document.getElementById("btnAuthGuest").onclick = async () => {
-  const msg = document.getElementById("authMsg");
-  const res = await auth.continueAsGuest();
-  if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not start guest session.");
+  if (res.openEmailLink) {
+    msg.textContent =
+      "Code verified. Open the reset link in your email to finish, then log in.";
+    msg.classList.add("auth-msg-ok");
+    return;
+  }
+  if (res.needLogin) {
+    showAuthView("login");
+    const loginMsg = document.getElementById("loginMsg");
+    loginMsg.textContent = "Password updated. Log in with your new password.";
+    loginMsg.classList.add("auth-msg-ok");
     return;
   }
   resumeAudio();
@@ -2087,8 +2123,31 @@ applyThemeToDom(currentTheme);
       ? "FIREBASE CLOUD SAVE"
       : "LOCAL SAVE (add Firebase env to enable cloud)";
   }
+
   const hasSession = await auth.init();
-  if (hasSession) {
+
+  // Completing Firebase reset when user opens the email action link
+  if (auth.getResetOobFromUrl()) {
+    const finished = await auth.completeResetFromEmailLink();
+    if (finished.ok) {
+      openAuth("Password updated. Log in with your new password.");
+      document.getElementById("loginMsg")?.classList.add("auth-msg-ok");
+      if (finished.email) {
+        document.getElementById("loginEmail").value = finished.email;
+      }
+    } else if (finished.oobCode) {
+      openAuth();
+      openForgotView();
+      document.getElementById("forgotStepEmail").hidden = true;
+      document.getElementById("forgotStepOtp").hidden = false;
+      document.getElementById("forgotOtp").value = finished.oobCode;
+      document.getElementById("forgotOtpMsg").textContent =
+        "Enter a new password to finish reset.";
+      document.getElementById("forgotOtpMsg").classList.add("auth-msg-ok");
+    } else {
+      openAuth(authFailureMessage(finished, "Could not finish password reset."));
+    }
+  } else if (hasSession) {
     await pullCloudSave();
     loadUserData();
     goHome();
