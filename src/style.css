@@ -563,7 +563,7 @@ body:not(.menu-open) .app-toast {
 
 .auth-msg {
   min-height: 0;
-  margin: 0;
+  margin: 4px 0 8px;
   padding: 0 2px;
   font-size: 13px;
   line-height: 1.45;

@@ -9,6 +9,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   updateProfile,
+  updatePassword,
   signOut,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
@@ -26,6 +27,7 @@ const PENDING_RESET_KEY = "space-survival-pending-reset";
 const OTP_STORE_KEY = "space-survival-otp";
 const REFRESH_PREFIX = "space-survival-refresh:";
 const OTP_TTL_MS = 10 * 60 * 1000;
+const PENDING_RESET_TTL_MS = 60 * 60 * 1000;
 
 let pendingOtp = null;
 
@@ -267,18 +269,31 @@ async function emailOtpViaEmailJs(email, otp) {
 }
 
 function savePendingReset(email, password) {
-  sessionStorage.setItem(
-    PENDING_RESET_KEY,
-    JSON.stringify({ email: normalizeEmail(email), password, at: Date.now() }),
-  );
+  const payload = JSON.stringify({
+    email: normalizeEmail(email),
+    password,
+    at: Date.now(),
+  });
+  try {
+    localStorage.setItem(PENDING_RESET_KEY, payload);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem(PENDING_RESET_KEY, payload);
+  } catch {
+    /* ignore */
+  }
 }
 
 function loadPendingReset() {
   try {
-    const raw = sessionStorage.getItem(PENDING_RESET_KEY);
+    const raw =
+      localStorage.getItem(PENDING_RESET_KEY) ||
+      sessionStorage.getItem(PENDING_RESET_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data?.password || Date.now() - (data.at || 0) > OTP_TTL_MS) return null;
+    if (!data?.password || Date.now() - (data.at || 0) > PENDING_RESET_TTL_MS) return null;
     return data;
   } catch {
     return null;
@@ -286,7 +301,32 @@ function loadPendingReset() {
 }
 
 function clearPendingReset() {
-  sessionStorage.removeItem(PENDING_RESET_KEY);
+  try {
+    localStorage.removeItem(PENDING_RESET_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.removeItem(PENDING_RESET_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** After a successful login, apply a pending OTP new-password if one exists. */
+async function applyPendingPasswordIfNeeded(email, user) {
+  const pending = loadPendingReset();
+  const mail = normalizeEmail(email);
+  if (!pending || pending.email !== mail || !pending.password || !user) return false;
+  try {
+    await updatePassword(user, pending.password);
+    clearPendingReset();
+    saveRefreshToken(mail, user);
+    return true;
+  } catch (err) {
+    console.warn("Could not apply pending password:", err?.code || err?.message || err);
+    return false;
+  }
 }
 
 /** Exchange refresh token → update Firebase password via Identity Toolkit. */
@@ -532,15 +572,29 @@ export const auth = {
         const fa = getFirebaseAuth();
         const cred = await signInWithEmailAndPassword(fa, mail, password);
         saveRefreshToken(mail, cred.user);
+        const appliedPending = await applyPendingPasswordIfNeeded(mail, cred.user);
         this.applySession({
           userId: cred.user.uid,
           username: displayNameFromUser(cred.user, displayNameFromEmail(mail)),
           isGuest: false,
           backend: "firebase",
         });
-        return { ok: true };
+        return { ok: true, passwordUpdated: appliedPending };
       } catch (err) {
         console.warn("Firebase login failed:", err?.code, err?.message);
+        const pending = loadPendingReset();
+        const typedNew =
+          pending &&
+          pending.email === mail &&
+          pending.password === password;
+        if (typedNew) {
+          return {
+            ok: false,
+            reason: "pending-reset",
+            detail:
+              "That new password is not active yet. Open the reset link in your email, or log in once with your old password to activate it.",
+          };
+        }
         return {
           ok: false,
           reason: mapFirebaseError(err?.code, err?.message),

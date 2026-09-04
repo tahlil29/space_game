@@ -2055,6 +2055,8 @@ const AUTH_REASONS = {
   missing: "No account found for that email.",
   otp: "Invalid or expired code. Request a new one.",
   "need-password": "Enter a new password to finish reset.",
+  "pending-reset":
+    "New password is not active yet. Open the email reset link, or log in once with your old password.",
   "firebase-not-started": "Sign-in is not ready yet. Try again in a moment.",
   "firebase-disabled": "That sign-in method is not available right now.",
   network: "Network error. Check your connection and retry.",
@@ -2068,6 +2070,7 @@ const AUTH_REASONS = {
 
 function authFailureMessage(res, fallback) {
   if (res.reason === "domain") return unauthorizedDomainHint();
+  if (res.reason === "pending-reset" && res.detail) return res.detail;
   const base = AUTH_REASONS[res.reason] || fallback;
   if (res.detail && !AUTH_REASONS[res.reason]) return `${base} (${res.detail})`;
   return base;
@@ -2144,7 +2147,10 @@ document.getElementById("loginForm").onsubmit = async (e) => {
       return;
     }
     resumeAudio();
-    await enterAppAfterAuth({ welcome: `Welcome back, ${auth.displayName()}!` });
+    const welcome = res.passwordUpdated
+      ? `Password updated. Welcome back, ${auth.displayName()}!`
+      : `Welcome back, ${auth.displayName()}!`;
+    await enterAppAfterAuth({ welcome });
   } catch (err) {
     console.warn(err);
     msg.textContent =
@@ -2155,6 +2161,16 @@ document.getElementById("loginForm").onsubmit = async (e) => {
     setAuthBusy(false);
   }
 };
+
+// Clear stale success banners as soon as the user edits login fields
+["loginEmail", "loginPassword"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("input", () => {
+    const msg = document.getElementById("loginMsg");
+    if (!msg) return;
+    msg.textContent = "";
+    msg.classList.remove("auth-msg-ok");
+  });
+});
 
 document.getElementById("signupForm").onsubmit = async (e) => {
   e.preventDefault();
@@ -2303,11 +2319,11 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
       showAuthView("login");
       const loginMsg = document.getElementById("loginMsg");
       loginMsg.textContent =
-        "Code verified. Open the password-reset link in your email to finish, then log in.";
+        "Almost done: open the reset link in your email to activate the new password, then log in. Or log in once with your old password to activate it.";
       loginMsg.classList.add("auth-msg-ok");
       document.getElementById("loginEmail").value = email;
       document.getElementById("loginPassword").value = "";
-      showAppToast("Check your email for the final reset link.");
+      showAppToast("Check email for the reset link — or log in with your old password once.");
       return;
     }
     if (res.needLogin) {
