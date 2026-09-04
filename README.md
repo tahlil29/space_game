@@ -2,7 +2,7 @@
 
 Browser arena shooter — modes, levels, themes, shop, and touch-friendly controls for phone, tablet, and laptop.
 
-**V3.2** stabilizes UI/gameplay across devices (responsive menus + on-screen stick / FIRE / DASH).
+**V3.3** completes arcade gamification: combos, floating rewards, wave toasts, career stats, and loadout rarity.
 
 ## Run locally
 

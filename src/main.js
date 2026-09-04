@@ -90,7 +90,15 @@ let ambience = [];
 let ambienceTimer = 0;
 let arenaProps = [];
 let shopTab = "ship";
+let floaters = [];
+let combo = 0;
+let bestCombo = 0;
+let comboTimer = 0;
+let killCount = 0;
+let runCoinsEarned = 0;
+let waveToastTimer = 0;
 const UPGRADE_HITS = 6;
+const COMBO_WINDOW = 2.2;
 
 const touch = {
   active: false,
@@ -192,10 +200,139 @@ function refreshCoinUI() {
   const c = String(shop.coins);
   const home = document.getElementById("homeCoins");
   const shopEl = document.getElementById("shopCoins");
-  const hud = document.getElementById("hudCoins");
+  const hudCoins = document.getElementById("hudCoins");
   if (home) home.textContent = c;
   if (shopEl) shopEl.textContent = c;
-  if (hud) hud.textContent = c;
+  if (hudCoins) {
+    if (hudCoins.textContent !== c) {
+      hudCoins.parentElement?.classList.add("coin-flash");
+      setTimeout(() => hudCoins.parentElement?.classList.remove("coin-flash"), 280);
+    }
+    hudCoins.textContent = c;
+  }
+}
+
+function refreshCareerStats() {
+  const best = Math.max(
+    progress.classic?.bestScore || 0,
+    progress.boss?.bestScore || 0,
+    progress.endless?.bestScore || 0,
+  );
+  const sectors = Math.max(
+    progress.classic?.unlocked || 1,
+    progress.boss?.unlocked || 1,
+  );
+  const endlessWave = progress.endless?.bestWave || 0;
+  const bestEl = document.getElementById("careerBest");
+  const secEl = document.getElementById("careerSectors");
+  const endEl = document.getElementById("careerEndless");
+  if (bestEl) bestEl.textContent = String(best);
+  if (secEl) secEl.textContent = String(sectors);
+  if (endEl) endEl.textContent = `W${endlessWave}`;
+}
+
+function spawnFloater(x, y, text, color = "#ffd56b") {
+  floaters.push({
+    x,
+    y,
+    vy: -48 - Math.random() * 30,
+    life: 0.9,
+    text,
+    color,
+  });
+}
+
+function updateFloaters(dt) {
+  for (const f of floaters) {
+    f.y += f.vy * dt;
+    f.vy *= 0.98;
+    f.life -= dt;
+  }
+  floaters = floaters.filter((f) => f.life > 0);
+}
+
+function drawFloaters() {
+  for (const f of floaters) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.4));
+    ctx.fillStyle = f.color;
+    ctx.font = "bold 16px Orbitron, sans-serif";
+    ctx.textAlign = "center";
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = f.color;
+    ctx.fillText(f.text, f.x, f.y);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function updateCombo(dt) {
+  if (combo <= 0) return;
+  comboTimer -= dt;
+  if (comboTimer <= 0) {
+    combo = 0;
+    comboTimer = 0;
+    syncComboHud();
+  }
+}
+
+function registerKill(e, baseCoins, baseScore) {
+  combo += 1;
+  bestCombo = Math.max(bestCombo, combo);
+  comboTimer = COMBO_WINDOW;
+  killCount += 1;
+  const comboBonus = Math.min(8, Math.floor((combo - 1) / 2));
+  const coins = baseCoins + comboBonus;
+  const scoreGain = baseScore + comboBonus * 2;
+  shop.addCoins(coins);
+  runCoinsEarned += coins;
+  score += scoreGain;
+  spawnFloater(e.x, e.y - 10, `+${coins} ◎`, "#ffd56b");
+  spawnFloater(e.x + 12, e.y + 14, `+${scoreGain}`, "#7bc8ff");
+  if (combo >= 2) {
+    spawnFloater(e.x - 16, e.y - 28, `COMBO x${combo}`, "#7dffb2");
+  }
+  syncComboHud();
+  refreshCoinUI();
+  return { coins, scoreGain };
+}
+
+function syncComboHud() {
+  const panel = document.getElementById("comboPanel");
+  const val = document.getElementById("comboValue");
+  if (!panel || !val) return;
+  if (combo >= 2 && isActiveGameplay()) {
+    panel.classList.remove("screen-hidden");
+    val.textContent = `x${combo}`;
+    panel.classList.add("combo-hot");
+  } else {
+    panel.classList.add("screen-hidden");
+    panel.classList.remove("combo-hot");
+    val.textContent = "x1";
+  }
+}
+
+function showWaveToast(title, kicker = "INCOMING") {
+  const el = document.getElementById("waveToast");
+  const text = document.getElementById("waveToastText");
+  const kick = el?.querySelector(".wave-toast-kicker");
+  if (!el || !text) return;
+  if (kick) kick.textContent = kicker;
+  text.textContent = title;
+  el.classList.remove("screen-hidden");
+  el.classList.remove("wave-toast-out");
+  el.classList.add("wave-toast-in");
+  waveToastTimer = 1.6;
+}
+
+function updateWaveToast(dt) {
+  if (waveToastTimer <= 0) return;
+  waveToastTimer -= dt;
+  if (waveToastTimer <= 0) {
+    const el = document.getElementById("waveToast");
+    el?.classList.add("wave-toast-out");
+    setTimeout(() => el?.classList.add("screen-hidden"), 280);
+  }
 }
 
 function rebuildArenaProps() {
@@ -247,6 +384,8 @@ function showHud(visible) {
     mouse.down = false;
     resetTouchMove();
     btnTouchFire?.classList.remove("active");
+    document.getElementById("comboPanel")?.classList.add("screen-hidden");
+    document.getElementById("waveToast")?.classList.add("screen-hidden");
   }
 }
 
@@ -570,6 +709,14 @@ function reset(fromLevel = 1) {
   ramsThisLevel = 0;
   ambience = [];
   ambienceTimer = 0;
+  floaters = [];
+  combo = 0;
+  bestCombo = 0;
+  comboTimer = 0;
+  killCount = 0;
+  runCoinsEarned = 0;
+  waveToastTimer = 0;
+  syncComboHud();
 }
 
 function startGame(fromLevel = 1) {
@@ -588,6 +735,7 @@ function startGame(fromLevel = 1) {
   rebuildArenaProps();
   refreshCoinUI();
   syncTouchUi();
+  showWaveToast(`WAVE ${waveInLevel(wave)}`, `LEVEL ${getLevel(wave)}`);
   last = performance.now();
 }
 
@@ -721,6 +869,7 @@ function goHome() {
   currentTheme = getTheme(settings.selectedMode || "classic");
   applyThemeToDom(currentTheme);
   refreshCoinUI();
+  refreshCareerStats();
   showScreen("home");
 }
 
@@ -1004,6 +1153,7 @@ function advanceAfterWaveClear(clearedWave) {
 
   betweenWaves = false;
   gameState = "playing";
+  showWaveToast(`WAVE ${waveInLevel(wave)}`, `LEVEL ${getLevel(wave)}`);
 }
 
 function collectUpgrade(target) {
@@ -1061,6 +1211,8 @@ function showLevelComplete(clearedLevel) {
       : `${levelStarsHtml(earnedStars)}  Next sector: Level ${clearedLevel + 1}.`;
 
   ramsThisLevel = 0;
+  refreshCareerStats();
+  document.getElementById("waveToast")?.classList.add("screen-hidden");
   showScreen("level");
 }
 
@@ -1069,6 +1221,8 @@ function continueAfterLevel() {
   betweenWaves = false;
   gameState = "playing";
   showScreen(null);
+  syncTouchUi();
+  showWaveToast(`WAVE ${waveInLevel(wave)}`, `LEVEL ${getLevel(wave)}`);
   last = performance.now();
 }
 
@@ -1260,11 +1414,11 @@ function updatePlaying(dt) {
       burst(b.x, b.y, 3);
       if (isBoss(e.kind)) vibrateHit();
       if (e.hp <= 0) {
-        score += e.kind === "boss" ? 80 : e.kind === "tank" ? 30 : e.kind === "fast" ? 15 : 10;
+        const baseScore =
+          e.kind === "boss" ? 80 : e.kind === "tank" ? 30 : e.kind === "fast" ? 15 : 10;
         xp += e.kind === "boss" ? 10 : e.kind === "tank" ? 4 : 1;
-        const coins = COIN_REWARDS[e.kind] || 2;
-        shop.addCoins(coins);
-        refreshCoinUI();
+        const baseCoins = COIN_REWARDS[e.kind] || 2;
+        registerKill(e, baseCoins, baseScore);
         addXP(e.x, e.y);
         burst(
           e.x,
@@ -1297,6 +1451,7 @@ function updatePlaying(dt) {
     if (dist < player.r + p.r + 4) {
       xp++;
       score += 2;
+      spawnFloater(p.x, p.y, "+XP", "#9d7bff");
       powerups.splice(i, 1);
     } else if (p.life <= 0) {
       powerups.splice(i, 1);
@@ -1358,6 +1513,10 @@ function update(dt) {
   } else {
     updatePlaying(dt);
   }
+
+  updateFloaters(dt);
+  updateCombo(dt);
+  updateWaveToast(dt);
 
   particles.forEach((p) => {
     p.x += p.vx * dt;
@@ -1556,6 +1715,7 @@ function draw() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+  drawFloaters();
 }
 
 function loop(t) {
@@ -1585,17 +1745,24 @@ function gameOver() {
   upgradeTargets = [];
   pendingLevelAdvance = false;
   upgradeBanner.classList.add("screen-hidden");
+  document.getElementById("waveToast")?.classList.add("screen-hidden");
   mouse.down = false;
+  touch.firing = false;
+  syncComboHud();
   if (currentMode.id === "endless") {
     progress.recordEndlessRun(wave, score);
   }
   document.getElementById("goLevel").textContent = String(getLevel(wave));
   document.getElementById("goWave").textContent = String(wave);
   document.getElementById("goScore").textContent = String(score);
+  document.getElementById("goCoins").textContent = String(runCoinsEarned);
+  document.getElementById("goCombo").textContent = `x${Math.max(1, bestCombo)}`;
+  document.getElementById("goKills").textContent = String(killCount);
   document.getElementById("goModeBadge").textContent = `${currentMode.hudLabel} · FAILED`;
   document.getElementById("goModeLine").textContent = `Mode: ${currentMode.name}`;
   document.getElementById("goMessage").textContent =
     `Destroyed on level ${getLevel(wave)}, wave ${wave}. Final score: ${score}.`;
+  refreshCareerStats();
   showScreen("gameover");
 }
 
@@ -1692,6 +1859,7 @@ initAudio();
 showHud(false);
 applyThemeToDom(currentTheme);
 refreshCoinUI();
+refreshCareerStats();
 renderModeCards();
 setStartModeLabel();
 showScreen("home");

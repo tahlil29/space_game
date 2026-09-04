@@ -27,16 +27,24 @@
         <div class="panel"><span class="panel-kicker">SCORE</span><b id="score">0</b></div>
         <div class="panel"><span class="panel-kicker">XP</span><b id="xp">0</b></div>
         <div class="panel coins-panel"><span class="panel-kicker">◎</span><b id="hudCoins">0</b></div>
+        <div id="comboPanel" class="panel combo-panel screen-hidden"><span class="panel-kicker">COMBO</span><b id="comboValue">x1</b></div>
       </div>
       <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause">⏸</button>
     </div>
   </div>
 
-  <div id="healthWrap" class="screen-hidden">
-    <div class="label"><span>HULL</span><span id="hpText">100 / 100</span></div>
-    <div class="bar"><div id="hpFill" class="fill"></div></div>
-    <div class="label strength-label"><span>SHIP STRENGTH</span><span id="strengthText">100 / 100</span></div>
-    <div class="bar"><div id="strengthFill" class="strengthFill"></div></div>
+  <div id="healthWrap" class="screen-hidden health-card">
+    <div class="health-chrome">
+      <div class="label"><span>HULL INTEGRITY</span><span id="hpText">100 / 100</span></div>
+      <div class="bar"><div id="hpFill" class="fill"></div></div>
+      <div class="label strength-label"><span>SHIELD MATRIX</span><span id="strengthText">100 / 100</span></div>
+      <div class="bar"><div id="strengthFill" class="strengthFill"></div></div>
+    </div>
+  </div>
+
+  <div id="waveToast" class="wave-toast screen-hidden" aria-live="polite">
+    <span class="wave-toast-kicker">INCOMING</span>
+    <strong id="waveToastText">WAVE 1</strong>
   </div>
 
   <div id="help" class="screen-hidden">
@@ -73,6 +81,11 @@
         <span class="coin-icon" aria-hidden="true"></span>
         <span class="coin-label">CREDITS</span>
         <b id="homeCoins">0</b>
+      </div>
+      <div class="career-row" id="careerStats">
+        <div class="career-stat"><span>BEST</span><b id="careerBest">0</b></div>
+        <div class="career-stat"><span>SECTORS</span><b id="careerSectors">1</b></div>
+        <div class="career-stat"><span>ENDLESS</span><b id="careerEndless">W0</b></div>
       </div>
       <div class="btn-stack">
         <button id="btnPlay" class="btn btn-primary btn-cta" type="button">
@@ -254,6 +267,20 @@
         <div class="stat-box">
           <span class="stat-label">SCORE</span>
           <span class="stat-value" id="goScore">0</span>
+        </div>
+      </div>
+      <div class="stats-grid go-extra">
+        <div class="stat-box">
+          <span class="stat-label">CREDITS</span>
+          <span class="stat-value" id="goCoins">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">BEST COMBO</span>
+          <span class="stat-value" id="goCombo">x1</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">KILLS</span>
+          <span class="stat-value" id="goKills">0</span>
         </div>
       </div>
       <p class="subtitle" id="goModeLine"></p>

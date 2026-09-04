@@ -125,6 +125,160 @@ body.menu-open canvas {
   font-family: Orbitron, sans-serif;
 }
 
+.home-footer {
+  margin: 18px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  font-family: Orbitron, sans-serif;
+}
+
+.career-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 14px 0 2px;
+}
+
+.career-stat {
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 185, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.career-stat span {
+  display: block;
+  font-family: Orbitron, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  opacity: 0.55;
+  margin-bottom: 4px;
+}
+
+.career-stat b {
+  font-family: Orbitron, sans-serif;
+  font-size: 16px;
+  color: var(--theme-accent, #7bc8ff);
+}
+
+.combo-panel {
+  border-color: rgba(125, 255, 178, 0.45) !important;
+  background: linear-gradient(135deg, rgba(125, 255, 178, 0.16), rgba(5, 10, 28, 0.85)) !important;
+  color: #7dffb2;
+}
+
+.combo-panel.combo-hot {
+  animation: comboPop 0.35s ease;
+}
+
+.combo-panel b {
+  color: #7dffb2 !important;
+}
+
+@keyframes comboPop {
+  from {
+    transform: scale(0.86);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.coin-flash {
+  animation: coinFlash 0.28s ease;
+}
+
+@keyframes coinFlash {
+  0% {
+    filter: brightness(1);
+  }
+  40% {
+    filter: brightness(1.55);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+.wave-toast {
+  position: fixed;
+  top: 22%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 7;
+  pointer-events: none;
+  text-align: center;
+  padding: 18px 28px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--theme-accent, #7bc8ff) 55%, transparent);
+  background: rgba(4, 10, 24, 0.82);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 30px color-mix(in srgb, var(--theme-accent, #7bc8ff) 20%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.wave-toast-kicker {
+  display: block;
+  font-family: Orbitron, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  opacity: 0.65;
+  margin-bottom: 6px;
+}
+
+.wave-toast strong {
+  display: block;
+  font-family: Orbitron, sans-serif;
+  font-size: clamp(28px, 6vw, 42px);
+  font-weight: 900;
+  color: var(--theme-accent, #7bc8ff);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--theme-accent, #7bc8ff) 45%, transparent);
+}
+
+.wave-toast-in {
+  animation: toastIn 0.35s ease;
+}
+
+.wave-toast-out {
+  animation: toastOut 0.28s ease forwards;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(1.04);
+  }
+}
+
+.health-card .health-chrome {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(126, 185, 255, 0.28);
+  background: linear-gradient(165deg, rgba(10, 18, 40, 0.88), rgba(4, 8, 18, 0.9));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+.go-extra {
+  margin-top: 0;
+}
+
+.go-extra .stat-value {
+  font-size: 18px;
+}
+
 .pilot-tag {
   margin: 0 0 4px;
   font-family: Orbitron, sans-serif;
@@ -1111,7 +1265,7 @@ body.menu-open canvas {
   position: fixed;
   left: max(12px, env(safe-area-inset-left));
   bottom: max(18px, env(safe-area-inset-bottom));
-  width: min(280px, 50vw);
+  width: min(300px, 54vw);
   pointer-events: none;
   z-index: 2;
 }
