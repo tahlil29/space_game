@@ -103,8 +103,8 @@ body.menu-open canvas {
 }
 
 .home-actions {
-  margin-top: 18px;
-  gap: 10px;
+  margin-top: 22px;
+  gap: 12px;
 }
 
 .home-btn {
@@ -113,7 +113,7 @@ body.menu-open canvas {
   justify-content: flex-start;
   gap: 14px;
   text-align: left;
-  padding: 14px 18px;
+  padding: 15px 18px;
   width: 100%;
 }
 
@@ -213,7 +213,7 @@ body.menu-open canvas {
 
 .app-brand {
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 20px;
   flex-shrink: 0;
 }
 
@@ -221,14 +221,14 @@ body.menu-open canvas {
   margin: 0;
   font-family: Orbitron, sans-serif;
   font-weight: 900;
-  font-size: clamp(26px, 7.2vw, 40px);
+  font-size: clamp(28px, 7.2vw, 42px);
   letter-spacing: 0.06em;
   line-height: 1.15;
   word-break: keep-all;
 }
 
 .home-brand {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   text-align: center;
 }
 
@@ -242,6 +242,7 @@ body.menu-open canvas {
 
 .auth-view {
   width: 100%;
+  gap: 0;
 }
 
 .home-topbar {
@@ -254,8 +255,8 @@ body.menu-open canvas {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
-  padding: 10px 12px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid rgba(126, 185, 255, 0.22);
   background: rgba(8, 14, 28, 0.55);
@@ -322,7 +323,7 @@ body.menu-open canvas {
 }
 
 .home-substats {
-  margin: 0 0 8px;
+  margin: 0 0 14px;
   text-align: center;
   font-family: Orbitron, sans-serif;
   font-size: 11px;
@@ -347,14 +348,6 @@ body.menu-open canvas {
   font-size: 11px;
 }
 
-.auth-backend {
-  margin: 8px 0 0;
-  font-family: Orbitron, sans-serif;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  opacity: 0.55;
-}
-
 .auth-heading {
   margin: 0;
   font-family: Orbitron, sans-serif;
@@ -365,21 +358,22 @@ body.menu-open canvas {
 }
 
 .auth-lede {
-  margin: 4px 0 14px;
+  margin: 6px 0 18px;
   text-align: left;
   opacity: 0.65;
   font-size: 14px;
+  line-height: 1.4;
 }
 
 .auth-link-left {
-  margin: 0;
+  margin: 2px 0 0;
   text-align: left;
   width: auto;
   padding: 0;
 }
 
 .auth-switch {
-  margin: 14px 0 0;
+  margin: 18px 0 0;
   text-align: center;
   font-size: 13px;
   opacity: 0.75;
@@ -414,6 +408,11 @@ body.menu-open canvas {
   text-align: center;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   pointer-events: none;
+}
+
+/* Keep toast above menus, but never over active touch controls */
+body.playing .app-toast {
+  display: none !important;
 }
 
 .otp-banner {
@@ -503,14 +502,14 @@ body.menu-open canvas {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   text-align: left;
 }
 
 .auth-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   font-family: Orbitron, sans-serif;
   font-size: 10px;
   letter-spacing: 0.14em;
@@ -522,7 +521,7 @@ body.menu-open canvas {
   background: rgba(0, 0, 0, 0.28);
   color: #eef7ff;
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 13px 14px;
   font-family: "Exo 2", sans-serif;
   font-size: 15px;
   outline: none;
@@ -534,11 +533,16 @@ body.menu-open canvas {
 }
 
 .auth-msg {
-  min-height: 18px;
+  min-height: 0;
   margin: 0;
   font-size: 12px;
+  line-height: 1.35;
   color: #ff8aa4;
   text-align: center;
+}
+
+.auth-msg:empty {
+  display: none;
 }
 
 .auth-msg.auth-msg-ok {
@@ -585,7 +589,7 @@ body.menu-open canvas {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 16px 0 12px;
+  margin: 18px 0 14px;
   opacity: 0.55;
   font-family: Orbitron, sans-serif;
   font-size: 11px;
@@ -606,12 +610,12 @@ body.menu-open canvas {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.06);
   color: #eef7ff;
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 13px 16px;
   font-family: Orbitron, sans-serif;
   font-size: 12px;
   font-weight: 700;

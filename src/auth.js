@@ -206,7 +206,7 @@ function currentSiteHost() {
 /** Shown when Google sign-in fails with unauthorized-domain. */
 export function unauthorizedDomainHint() {
   const host = currentSiteHost();
-  return `Add "${host}" in Firebase → Authentication → Settings → Authorized domains, then retry Google.`;
+  return `This site (${host}) needs to be allowed for Google sign-in. Try again shortly or use email.`;
 }
 
 export function isEmailOtpConfigured() {

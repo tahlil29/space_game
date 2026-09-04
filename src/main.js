@@ -34,7 +34,6 @@ import {
 import { shop, COIN_REWARDS } from "./shop.js";
 import { auth, unauthorizedDomainHint, isEmailOtpConfigured } from "./auth.js";
 import { userKey } from "./storage.js";
-import { isFirebaseConfigured } from "./firebase.js";
 import { pullCloudSave, pushCloudSave } from "./cloud.js";
 
 const canvas = document.getElementById("game");
@@ -761,6 +760,12 @@ function startGame(fromLevel = 1) {
   gameState = "playing";
   showScreen(null);
   showHud(true);
+  // Clear menu toasts so they don't cover touch controls
+  const toast = document.getElementById("appToast");
+  if (toast) {
+    toast.classList.add("screen-hidden");
+    clearTimeout(showAppToast._t);
+  }
   document.getElementById("modeLabel").textContent = currentMode.hudLabel;
   document.getElementById("modeLabel").style.color = currentTheme.accent;
   resumeAudio();
@@ -2050,18 +2055,15 @@ const AUTH_REASONS = {
   missing: "No account found for that email.",
   otp: "Invalid or expired code. Request a new one.",
   "need-password": "Enter a new password to finish reset.",
-  "firebase-not-started":
-    "Open Firebase Console → Authentication → Get started, then enable Email/Password.",
-  "firebase-disabled":
-    "Enable Email/Password (and Google/Anonymous if used) in Firebase → Sign-in method.",
-  network: "Network error talking to Firebase.",
+  "firebase-not-started": "Sign-in is not ready yet. Try again in a moment.",
+  "firebase-disabled": "That sign-in method is not available right now.",
+  network: "Network error. Check your connection and retry.",
   domain: "", // filled dynamically with the exact hostname
   rate: "Too many tries. Wait a minute and retry.",
-  "popup-closed": "Google sign-in was cancelled.",
-  "popup-blocked": "Allow popups for this site to use Google sign-in.",
-  "account-exists":
-    "That Google email already has an account with a different sign-in method.",
-  firebase: "Firebase auth failed. Check Email/Password is enabled.",
+  "popup-closed": "Sign-in was cancelled.",
+  "popup-blocked": "Allow popups for this site to continue.",
+  "account-exists": "That email already uses a different sign-in method.",
+  firebase: "Could not sign in. Please try again.",
 };
 
 function authFailureMessage(res, fallback) {
@@ -2315,13 +2317,6 @@ showHud(false);
 applyThemeToDom(currentTheme);
 
 (async () => {
-  const modeEl = document.getElementById("authBackend");
-  if (modeEl) {
-    modeEl.textContent = isFirebaseConfigured()
-      ? "FIREBASE CLOUD SAVE"
-      : "LOCAL SAVE (add Firebase env to enable cloud)";
-  }
-
   const hasSession = await auth.init();
 
   // Completing Firebase reset when user opens the email action link
