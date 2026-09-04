@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   confirmPasswordReset,
   verifyPasswordResetCode,
+  sendPasswordResetEmail,
   signInAnonymously,
   signInWithPopup,
   GoogleAuthProvider,
@@ -152,7 +153,86 @@ function clearLocalAuthPassword(email) {
   }
 }
 
-/** Persist email/password so OTP reset can sign in fresh and call updatePassword. */
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+  ]);
+}
+
+function randomFirebasePassword() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function bytesToHex(bytes) {
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(hex) {
+  const clean = String(hex || "");
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i += 1) {
+    out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+async function deriveAesKey(password, saltHex) {
+  const base = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveKey"],
+  );
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: hexToBytes(saltHex),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+/** Wrap the real Firebase Auth password with the player's chosen password. */
+async function wrapFirebasePassword(firebasePassword, userPassword) {
+  const wrapSalt = randomSalt();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveAesKey(userPassword, wrapSalt);
+  const cipher = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(firebasePassword),
+  );
+  return {
+    wrapSalt,
+    wrapIv: bytesToHex(iv),
+    wrapped: bytesToHex(new Uint8Array(cipher)),
+  };
+}
+
+async function unwrapFirebasePassword(cred, userPassword) {
+  if (!cred?.wrapped || !cred?.wrapSalt || !cred?.wrapIv) return "";
+  try {
+    const key = await deriveAesKey(userPassword, cred.wrapSalt);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: hexToBytes(cred.wrapIv) },
+      key,
+      hexToBytes(cred.wrapped),
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    return "";
+  }
+}
+
+/** Persist recovery material. Local always; Firestore when reachable. */
 async function rememberAuthSecret(email, password) {
   const mail = normalizeEmail(email);
   if (!mail || !password || password.length < 6) return;
@@ -162,22 +242,147 @@ async function rememberAuthSecret(email, password) {
     const db = getFirebaseDb();
     const fa = getFirebaseAuth();
     if (!db || !fa?.currentUser) return;
-    await Promise.race([
+    await withTimeout(
       setDoc(doc(db, "authSecrets", emailDocKey(mail)), {
         email: mail,
         authPassword: password,
         updatedAt: Date.now(),
       }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
-    ]);
+      4000,
+    );
   } catch (err) {
     console.warn("authSecrets save skipped:", err?.message || err);
   }
 }
 
 /**
- * After OTP is verified: use stored password + Identity Toolkit REST to set a new
- * password without touching the Firebase JS auth session (avoids sign-in/out races).
+ * Write public credentials (login) + OTP-gated vault (reset).
+ * Firebase Auth keeps `firebasePassword`; the player only ever types `userPassword`.
+ */
+async function writeVaultCredentials(email, firebasePassword, userPassword) {
+  const mail = normalizeEmail(email);
+  const db = getFirebaseDb();
+  if (!db) throw new Error("no-db");
+  const docKey = emailDocKey(mail);
+  const passSalt = randomSalt();
+  const passHash = await hashPassword(userPassword, passSalt);
+  const wrapped = await wrapFirebasePassword(firebasePassword, userPassword);
+  await withTimeout(
+    Promise.all([
+      setDoc(doc(db, "credentials", docKey), {
+        email: mail,
+        version: 2,
+        passSalt,
+        passHash,
+        ...wrapped,
+        updatedAt: Date.now(),
+      }),
+      setDoc(doc(db, "authVault", docKey), {
+        email: mail,
+        firebasePassword,
+        updatedAt: Date.now(),
+      }),
+    ]),
+    8000,
+  );
+  saveLocalAuthPassword(mail, userPassword);
+}
+
+async function readCredentials(email) {
+  const db = getFirebaseDb();
+  if (!db) return null;
+  try {
+    const snap = await withTimeout(
+      getDoc(doc(db, "credentials", emailDocKey(email))),
+      5000,
+    );
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.warn("credentials read skipped:", err?.message || err);
+    return null;
+  }
+}
+
+async function ensureOtpUnlock(email, otpHash) {
+  const db = getFirebaseDb();
+  if (!db) return;
+  const mail = normalizeEmail(email);
+  await withTimeout(
+    setDoc(doc(db, "otpUnlocks", emailDocKey(mail)), {
+      hash: otpHash,
+      email: mail,
+      expires: Date.now() + OTP_TTL_MS,
+    }),
+    4000,
+  );
+}
+
+async function readAuthVault(email) {
+  const db = getFirebaseDb();
+  if (!db) return null;
+  try {
+    const snap = await withTimeout(
+      getDoc(doc(db, "authVault", emailDocKey(email))),
+      5000,
+    );
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.warn("authVault read skipped:", err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * OTP reset when a vault exists: re-wrap the same Firebase password with the new
+ * player password. No Admin SDK and no old password required.
+ */
+async function resetPasswordViaVault(email, otpHash, newPassword) {
+  const mail = normalizeEmail(email);
+  const db = getFirebaseDb();
+  if (!db) return { ok: false, reason: "missing-vault" };
+
+  try {
+    await ensureOtpUnlock(mail, otpHash);
+  } catch (err) {
+    console.warn("otp unlock skipped:", err?.message || err);
+  }
+
+  const vault = await readAuthVault(mail);
+  const firebasePassword = String(vault?.firebasePassword || "");
+  if (firebasePassword.length < 6) {
+    return { ok: false, reason: "missing-vault" };
+  }
+
+  try {
+    const passSalt = randomSalt();
+    const passHash = await hashPassword(newPassword, passSalt);
+    const wrapped = await wrapFirebasePassword(firebasePassword, newPassword);
+    const docKey = emailDocKey(mail);
+    await withTimeout(
+      setDoc(doc(db, "credentials", docKey), {
+        email: mail,
+        version: 2,
+        passSalt,
+        passHash,
+        ...wrapped,
+        updatedAt: Date.now(),
+      }),
+      8000,
+    );
+    saveLocalAuthPassword(mail, newPassword);
+    Promise.all([
+      deleteDoc(doc(db, "passwordOtps", docKey)).catch(() => {}),
+      deleteDoc(doc(db, "otpUnlocks", docKey)).catch(() => {}),
+    ]).catch(() => {});
+    return { ok: true };
+  } catch (err) {
+    console.warn("Vault password reset failed:", err?.message || err);
+    return { ok: false, reason: "network", detail: err?.message || "" };
+  }
+}
+
+/**
+ * Legacy path: device/local secret or OTP-gated authSecrets → REST password update.
  */
 async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
   const mail = normalizeEmail(email);
@@ -186,27 +391,13 @@ async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
   if (!key) return { ok: false, reason: "missing-secret" };
 
   const docKey = emailDocKey(mail);
-  const withTimeout = (p, ms) =>
-    Promise.race([
-      p,
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
-    ]);
 
-  // 1) Same-browser password from a previous login/register
   let oldPassword = loadLocalAuthPassword(mail);
 
-  // 2) Cross-device: OTP-gated Firestore secret
   if (!oldPassword && db) {
     try {
-      await withTimeout(
-        setDoc(doc(db, "otpUnlocks", docKey), {
-          hash: otpHash,
-          email: mail,
-          expires: Date.now() + OTP_TTL_MS,
-        }),
-        3000,
-      );
-      const snap = await withTimeout(getDoc(doc(db, "authSecrets", docKey)), 3000);
+      await ensureOtpUnlock(mail, otpHash);
+      const snap = await withTimeout(getDoc(doc(db, "authSecrets", docKey)), 4000);
       if (snap.exists()) {
         oldPassword = String(snap.data()?.authPassword || "");
       }
@@ -277,16 +468,13 @@ async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
       }
     }
     saveLocalAuthPassword(mail, newPassword);
-
     if (db) {
       Promise.all([
         deleteDoc(doc(db, "passwordOtps", docKey)).catch(() => {}),
         deleteDoc(doc(db, "otpUnlocks", docKey)).catch(() => {}),
-        setDoc(doc(db, "authSecrets", docKey), {
-          email: mail,
-          authPassword: newPassword,
-          updatedAt: Date.now(),
-        }).catch(() => {}),
+        writeVaultCredentials(mail, newPassword, newPassword).catch(() =>
+          rememberAuthSecret(mail, newPassword),
+        ),
       ]).catch(() => {});
     }
     return { ok: true };
@@ -297,6 +485,54 @@ async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
       reason: "network",
       detail: err?.message || "Could not update password",
     };
+  }
+}
+
+/** Pull oobCode out of a pasted Firebase reset URL / query string. */
+function extractOobCode(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  if (/^\d{6}$/.test(raw)) return raw;
+  try {
+    if (/oobCode=/i.test(raw)) {
+      const asUrl = raw.includes("://")
+        ? raw
+        : `https://local.invalid/?${raw.replace(/^[?#]/, "")}`;
+      const code = new URL(asUrl).searchParams.get("oobCode");
+      if (code) return code;
+    }
+  } catch {
+    /* ignore */
+  }
+  return raw;
+}
+
+async function sendFirebaseBackupReset(email) {
+  const mail = normalizeEmail(email);
+  const fa = getFirebaseAuth();
+  if (!fa) return { ok: false };
+  try {
+    await withTimeout(sendPasswordResetEmail(fa, mail), 12000);
+    return { ok: true };
+  } catch (err) {
+    console.warn("Backup reset email failed:", err?.code || err?.message || err);
+    return { ok: false, detail: err?.message || "" };
+  }
+}
+
+/** After a legacy password login/register, store vault so future OTP resets work. */
+async function migrateLegacyToVault(user, email, userPassword) {
+  const mail = normalizeEmail(email);
+  if (!user || !mail || !userPassword) return;
+  try {
+    const existing = await readCredentials(mail);
+    if (existing?.version === 2 && existing?.wrapped) return;
+    // Legacy accounts use the player password as the Firebase password.
+    // Do NOT rotate it here — only publish vault/credentials for OTP re-wrap.
+    await writeVaultCredentials(mail, userPassword, userPassword);
+  } catch (err) {
+    console.warn("Vault migrate skipped:", err?.message || err);
+    rememberAuthSecret(mail, userPassword).catch(() => {});
   }
 }
 
@@ -640,11 +876,14 @@ export const auth = {
     if (isFirebaseConfigured()) {
       try {
         const fa = getFirebaseAuth();
+        // Create with the player password first so signup never depends on Firestore.
+        // Vault migration runs in the background (enables cross-device OTP reset).
         const cred = await createUserWithEmailAndPassword(fa, mail, password);
         await updateProfile(cred.user, { displayName: display });
         saveRefreshToken(mail, cred.user);
         saveLocalAuthPassword(mail, password);
         rememberAuthSecret(mail, password).catch(() => {});
+        migrateLegacyToVault(cred.user, mail, password).catch(() => {});
         this.applySession({
           userId: cred.user.uid,
           username: display,
@@ -689,11 +928,33 @@ export const auth = {
     if (isFirebaseConfigured()) {
       try {
         const fa = getFirebaseAuth();
-        const cred = await signInWithEmailAndPassword(fa, mail, password);
+        let cred = null;
+
+        // Vault accounts: unwrap real Firebase password from public credentials
+        const credentials = await readCredentials(mail);
+        if (credentials?.version === 2 && credentials?.wrapped) {
+          const passHash = await hashPassword(password, credentials.passSalt || "");
+          if (passHash !== credentials.passHash) {
+            return { ok: false, reason: "credentials" };
+          }
+          const firebasePassword = await unwrapFirebasePassword(credentials, password);
+          if (!firebasePassword) return { ok: false, reason: "credentials" };
+          cred = await signInWithEmailAndPassword(fa, mail, firebasePassword);
+        } else {
+          // Legacy accounts (Firebase password === player password)
+          cred = await signInWithEmailAndPassword(fa, mail, password);
+          migrateLegacyToVault(cred.user, mail, password).catch(() => {});
+        }
+
         saveRefreshToken(mail, cred.user);
         saveLocalAuthPassword(mail, password);
         rememberAuthSecret(mail, password).catch(() => {});
-        const appliedPending = await applyPendingPasswordIfNeeded(mail, cred.user);
+        let appliedPending = false;
+        if (!(credentials?.version === 2 && credentials?.wrapped)) {
+          appliedPending = await applyPendingPasswordIfNeeded(mail, cred.user);
+        } else {
+          clearPendingReset();
+        }
         this.applySession({
           userId: cred.user.uid,
           username: displayNameFromUser(cred.user, displayNameFromEmail(mail)),
@@ -840,16 +1101,17 @@ export const auth = {
     const mail = normalizeEmail(email);
     if (!isValidEmail(mail)) return { ok: false, reason: "email" };
     if (!newPassword || newPassword.length < 6) return { ok: false, reason: "password" };
-    const code = String(otp || "").trim();
+    const code = extractOobCode(otp);
     if (!code) return { ok: false, reason: "otp" };
 
-    // Long Firebase oobCode from email link → apply password directly
+    // Long Firebase oobCode from email link (or pasted reset URL) → apply password directly
     if (isFirebaseConfigured() && code.length >= 20) {
       try {
         await verifyPasswordResetCode(getFirebaseAuth(), code);
         await confirmPasswordReset(getFirebaseAuth(), code, newPassword);
         clearPendingReset();
         clearOtpRecord();
+        saveLocalAuthPassword(mail, newPassword);
         return { ok: true, needLogin: true };
       } catch (err) {
         return {
@@ -868,10 +1130,10 @@ export const auth = {
       try {
         const db = getFirebaseDb();
         if (db) {
-          const snap = await Promise.race([
+          const snap = await withTimeout(
             getDoc(doc(db, "passwordOtps", emailDocKey(mail))),
-            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
-          ]);
+            4000,
+          );
           if (snap.exists()) record = { ...snap.data(), email: mail };
         }
       } catch {
@@ -885,7 +1147,15 @@ export const auth = {
     }
 
     if (isFirebaseConfigured()) {
-      // 1) Fresh sign-in with stored password (local or OTP-gated Firestore) → updatePassword
+      // 1) Vault accounts — re-wrap Firebase password (no Admin, no old password)
+      const viaVault = await resetPasswordViaVault(mail, expectHash, newPassword);
+      if (viaVault.ok) {
+        clearOtpRecord();
+        clearPendingReset();
+        return { ok: true, needLogin: true };
+      }
+
+      // 2) Legacy device/local secret → REST password update
       const viaSecret = await updatePasswordViaStoredSecret(mail, expectHash, newPassword);
       if (viaSecret.ok) {
         clearOtpRecord();
@@ -893,7 +1163,7 @@ export const auth = {
         return { ok: true, needLogin: true };
       }
 
-      // 2) Same-device refresh token (may fail if Firebase requires recent login)
+      // 3) Same-device refresh token
       const updated = await updateFirebasePasswordWithRefresh(mail, newPassword).catch(
         () => false,
       );
@@ -915,7 +1185,7 @@ export const auth = {
         return { ok: true, needLogin: true };
       }
 
-      // 3) Server Admin API — sets Firebase password from OTP (no email link)
+      // 4) Server Admin API
       try {
         const apiRes = await Promise.race([
           fetch("/api/apply-otp-password", {
@@ -934,40 +1204,20 @@ export const auth = {
         }
         if (data?.reason === "otp") return { ok: false, reason: "otp", detail: data.detail };
         if (data?.reason === "missing") return { ok: false, reason: "missing" };
-        if (
-          data?.reason === "admin-missing" ||
-          viaSecret.reason === "missing-secret" ||
-          apiRes.status === 404 ||
-          apiRes.status === 502
-        ) {
-          return {
-            ok: false,
-            reason: "firebase",
-            detail:
-              "Password update needs a one-time setup: add FIREBASE_SERVICE_ACCOUNT_JSON (README), or log in once with your current password so this device can recover next time.",
-          };
-        }
-        return {
-          ok: false,
-          reason: "firebase",
-          detail: data?.detail || "Could not update password. Try again.",
-        };
       } catch (err) {
         console.warn("Password reset API failed:", err?.message || err);
-        if (viaSecret.reason === "missing-secret") {
-          return {
-            ok: false,
-            reason: "firebase",
-            detail:
-              "Password update needs a one-time setup: add FIREBASE_SERVICE_ACCOUNT_JSON (README), or log in once with your current password so this device can recover next time.",
-          };
-        }
-        return {
-          ok: false,
-          reason: "network",
-          detail: "Could not reach password reset server. Try again.",
-        };
       }
+
+      // 5) Emergency: email a Firebase reset link; user pastes oobCode into the OTP field
+      const backup = await sendFirebaseBackupReset(mail);
+      return {
+        ok: false,
+        reason: "need-backup",
+        emailedBackup: Boolean(backup.ok),
+        detail: backup.ok
+          ? "This account needs a backup reset email. Check your inbox for the Firebase link, paste the full link (or oobCode) into Email code, then set your new password."
+          : "Could not update password for this older account. Add FIREBASE_SERVICE_ACCOUNT_JSON (README), or open Forgot password again after logging in once.",
+      };
     }
 
     // Local accounts
@@ -992,6 +1242,12 @@ export const auth = {
     this.applySession(session);
     clearOtpRecord();
     return { ok: true };
+  },
+
+  async sendBackupResetEmail(email) {
+    const mail = normalizeEmail(email);
+    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
+    return sendFirebaseBackupReset(mail);
   },
 
   getResetOobFromUrl() {

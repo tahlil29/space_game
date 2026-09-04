@@ -29,8 +29,49 @@ service cloud.firestore {
       allow list, update: if false;
     }
 
-    // Email/password recovery secret. Readable only by the signed-in owner,
-    // or briefly after a valid OTP unlock (same security as knowing the OTP).
+    function otpUnlocked(emailKey) {
+      return exists(/databases/$(database)/documents/otpUnlocks/$(emailKey))
+        && exists(/databases/$(database)/documents/passwordOtps/$(emailKey))
+        && get(/databases/$(database)/documents/otpUnlocks/$(emailKey)).data.hash
+          == get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.hash
+        && get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.expires
+          > request.time.toMillis();
+    }
+
+    // Public login material: password hash + AES wrap of the real Firebase password.
+    // Useless without the player's password (or OTP access to authVault).
+    match /credentials/{emailKey} {
+      allow get: if true;
+      allow create, update: if (
+          request.auth != null
+          && request.auth.token.email is string
+          && request.resource.data.email == request.auth.token.email
+        ) || otpUnlocked(emailKey);
+      allow delete: if request.auth != null
+        && request.auth.token.email is string
+        && resource.data.email == request.auth.token.email;
+      allow list: if false;
+    }
+
+    // Real Firebase Auth password. Readable after OTP unlock (for forgot-password).
+    match /authVault/{emailKey} {
+      allow create, update: if request.auth != null
+        && request.auth.token.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.firebasePassword is string
+        && request.resource.data.firebasePassword.size() >= 6;
+      allow get: if (
+          request.auth != null
+          && request.auth.token.email is string
+          && resource.data.email == request.auth.token.email
+        ) || otpUnlocked(emailKey);
+      allow delete: if request.auth != null
+        && request.auth.token.email is string
+        && resource.data.email == request.auth.token.email;
+      allow list: if false;
+    }
+
+    // Legacy recovery secret (pre-vault). Prefer authVault going forward.
     match /authSecrets/{emailKey} {
       allow create, update: if request.auth != null
         && request.auth.token.email is string
@@ -42,14 +83,7 @@ service cloud.firestore {
           request.auth != null
           && request.auth.token.email is string
           && resource.data.email == request.auth.token.email
-        ) || (
-          exists(/databases/$(database)/documents/otpUnlocks/$(emailKey))
-          && exists(/databases/$(database)/documents/passwordOtps/$(emailKey))
-          && get(/databases/$(database)/documents/otpUnlocks/$(emailKey)).data.hash
-            == get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.hash
-          && get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.expires
-            > request.time.toMillis()
-        );
+        ) || otpUnlocked(emailKey);
       allow delete: if request.auth != null
         && request.auth.token.email is string
         && resource.data.email == request.auth.token.email;

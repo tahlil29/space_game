@@ -152,7 +152,7 @@
           <form id="forgotResetForm" class="auth-form forgot-reset-form">
             <label class="auth-field">
               <span>Email code (OTP)</span>
-              <input id="forgotOtp" type="text" inputmode="numeric" maxlength="64" placeholder="6-digit code" autocomplete="one-time-code" />
+              <input id="forgotOtp" type="text" inputmode="text" maxlength="512" placeholder="6-digit code or paste reset link" autocomplete="one-time-code" />
             </label>
             <label class="auth-field">
               <span>New password</span>
@@ -161,6 +161,9 @@
             <p class="auth-msg" id="forgotOtpMsg"></p>
             <button id="btnForgotReset" class="btn btn-primary" type="submit">Set new password</button>
           </form>
+          <button id="btnForgotBackup" class="auth-link forgot-backup" type="button" hidden>
+            Email me a backup reset link
+          </button>
         </div>
         <button id="btnForgotBack" class="auth-link forgot-back" type="button">← Back to login</button>
       </div>

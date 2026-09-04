@@ -2057,6 +2057,8 @@ const AUTH_REASONS = {
   "need-password": "Enter a new password to finish reset.",
   "pending-reset":
     "New password is not active yet. Use Forgot password with your email code, then log in.",
+  "need-backup":
+    "Check your email for a backup reset link, paste it into Email code, then set a new password.",
   "firebase-not-started": "Sign-in is not ready yet. Try again in a moment.",
   "firebase-disabled": "That sign-in method is not available right now.",
   network: "Network error. Check your connection and retry.",
@@ -2122,6 +2124,37 @@ document.getElementById("btnGoSignup").onclick = () => {
 document.getElementById("btnGoLogin").onclick = () => showAuthView("login");
 document.getElementById("btnForgotOpen").onclick = () => openForgotView();
 document.getElementById("btnForgotBack").onclick = () => showAuthView("login");
+
+document.getElementById("btnForgotBackup")?.addEventListener("click", async () => {
+  const msg = document.getElementById("forgotOtpMsg");
+  const hint = document.getElementById("forgotHint");
+  const email = document.getElementById("forgotEmail").value.trim();
+  const btn = document.getElementById("btnForgotBackup");
+  if (!email) {
+    msg.textContent = "Enter your email on the previous step first.";
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const res = await auth.sendBackupResetEmail(email);
+    if (!res.ok) {
+      msg.textContent = "Could not send backup email. Try again.";
+      return;
+    }
+    msg.textContent = "";
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent =
+        "Backup email sent. Open the Firebase link, copy the full URL, paste it into Email code, then set your new password.";
+    }
+    document.getElementById("forgotOtp")?.focus();
+  } catch (err) {
+    console.warn(err);
+    msg.textContent = "Could not send backup email. Try again.";
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 function withTimeout(promise, ms, label) {
   return Promise.race([
@@ -2313,8 +2346,23 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
     ]);
     if (!res.ok) {
       msg.textContent = res.detail || authFailureMessage(res, "Could not reset password.");
+      const backupBtn = document.getElementById("btnForgotBackup");
+      if (backupBtn) {
+        backupBtn.hidden = res.reason !== "need-backup";
+      }
+      if (res.reason === "need-backup") {
+        const hint = document.getElementById("forgotHint");
+        if (hint) {
+          hint.hidden = false;
+          hint.textContent = res.emailedBackup
+            ? "Backup email sent. Open the link, copy the URL, paste it into Email code, then tap Set new password again."
+            : "Tap “Email me a backup reset link”, then paste that link into Email code.";
+        }
+      }
       return;
     }
+    const backupBtn = document.getElementById("btnForgotBackup");
+    if (backupBtn) backupBtn.hidden = true;
     // Password is updated on the server — go to login with the NEW password
     showAuthView("login");
     const loginMsg = document.getElementById("loginMsg");
