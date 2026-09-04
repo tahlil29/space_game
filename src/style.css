@@ -410,8 +410,8 @@ body.menu-open canvas {
   pointer-events: none;
 }
 
-/* Keep toast above menus, but never over active touch controls */
-body.playing .app-toast {
+/* Keep toast above menus, but never over active gameplay / touch controls */
+body:not(.menu-open) .app-toast {
   display: none !important;
 }
 
