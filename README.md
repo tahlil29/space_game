@@ -1,8 +1,8 @@
 # Space Survival
 
-Browser arena shooter — modes, levels, themes, level map, shootable boosts.
+Browser arena shooter — modes, levels, themes, level map, shootable boosts, and a coin shop.
 
-**V3.0** includes Stage 6 polish (mode music + particles) and Stage 7 balance.
+**V3.1** adds a shop: earn coins from kills, then buy ship skins, enemy themes, and arena props.
 
 ## Run locally
 
@@ -12,6 +12,15 @@ npm run dev
 ```
 
 Open the URL Vite prints (port `43127`).
+
+## Shop
+
+- Kill enemies to earn coins (shown on the home screen and in-game HUD)
+- Open **SHOP** from home to buy and equip:
+  - **Ship** skins (hull / glow colors)
+  - **Enemy** themes (hostile color sets)
+  - **Props** (asteroids, beacons, debris, energy rings — cosmetic only)
+- Wallet and unlocks save in the browser (`localStorage`)
 
 ## Modes
 

@@ -19,6 +19,7 @@
         <div class="panel">WAVE <b id="wave">1</b> <span id="waveOf" class="muted">/ 3</span> <span id="enemyCount" class="muted"></span></div>
         <div class="panel">SCORE <b id="score">0</b></div>
         <div class="panel">XP <b id="xp">0</b></div>
+        <div class="panel coins-panel">COINS <b id="hudCoins">0</b></div>
       </div>
       <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause">⏸</button>
     </div>
@@ -39,16 +40,36 @@
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V3.0</div>
+      <div class="badge">ARCADE SHOOTER · V3.1 · SHOP</div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
       <p class="subtitle">
-        Three modes · levels with stars · themes · shoot boosts between waves.
-        Classic &amp; Boss use a level map; Endless never ends.
+        Earn coins from kills · buy ship skins, enemy themes, and arena props in the shop.
       </p>
       <div class="btn-stack">
         <button id="btnPlay" class="btn btn-primary" type="button">PLAY</button>
+        <button id="btnHomeShop" class="btn btn-secondary" type="button">SHOP</button>
         <button id="btnHomeSettings" class="btn btn-secondary" type="button">SETTINGS</button>
       </div>
+      <p class="home-coins">Coins: <b id="homeCoins">0</b></p>
+    </div>
+  </div>
+
+  <!-- Shop -->
+  <div id="screen-shop" class="screen">
+    <div class="screen-bg"></div>
+    <div class="menu-card shop-card">
+      <div class="badge">OUTFITTER</div>
+      <h2 class="title-sm">SHOP</h2>
+      <p class="subtitle">Spend coins from combat. Equip skins and arena props.</p>
+      <div class="shop-balance">COINS <b id="shopCoins">0</b></div>
+      <div class="shop-tabs">
+        <button type="button" class="shop-tab active" data-tab="ship">SHIP</button>
+        <button type="button" class="shop-tab" data-tab="enemy">ENEMY</button>
+        <button type="button" class="shop-tab" data-tab="prop">PROPS</button>
+      </div>
+      <div class="shop-grid" id="shopGrid"></div>
+      <p class="shop-msg" id="shopMsg"></p>
+      <button id="btnShopBack" class="btn btn-ghost" type="button">BACK</button>
     </div>
   </div>
 

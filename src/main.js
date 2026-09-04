@@ -31,6 +31,7 @@ import {
   MAP_LEVEL_COUNT,
   computeLevelStars,
 } from "./progress.js";
+import { shop, COIN_REWARDS } from "./shop.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -39,6 +40,7 @@ const screens = {
   home: document.getElementById("screen-home"),
   modes: document.getElementById("screen-modes"),
   map: document.getElementById("screen-map"),
+  shop: document.getElementById("screen-shop"),
   settings: document.getElementById("screen-settings"),
   pause: document.getElementById("screen-pause"),
   level: document.getElementById("screen-level"),
@@ -86,6 +88,8 @@ let startLevel = 1;
 let ramsThisLevel = 0;
 let ambience = [];
 let ambienceTimer = 0;
+let arenaProps = [];
+let shopTab = "ship";
 const UPGRADE_HITS = 6;
 
 function isActiveGameplay() {
@@ -94,10 +98,41 @@ function isActiveGameplay() {
 
 settings.load();
 progress.load();
+shop.load();
 settings.syncToggles();
 currentMode = getMode(settings.selectedMode || "classic");
 currentTheme = getTheme(currentMode.id);
 applyThemeToDom(currentTheme);
+
+function refreshCoinUI() {
+  const c = String(shop.coins);
+  const home = document.getElementById("homeCoins");
+  const shopEl = document.getElementById("shopCoins");
+  const hud = document.getElementById("hudCoins");
+  if (home) home.textContent = c;
+  if (shopEl) shopEl.textContent = c;
+  if (hud) hud.textContent = c;
+}
+
+function rebuildArenaProps() {
+  const item = shop.getEquipped("prop");
+  const prop = item?.prop || { kind: "none" };
+  arenaProps = [];
+  if (!prop.kind || prop.kind === "none") return;
+  const n = prop.count || 5;
+  for (let i = 0; i < n; i++) {
+    arenaProps.push({
+      kind: prop.kind,
+      x: 60 + Math.random() * Math.max(40, W - 120),
+      y: 60 + Math.random() * Math.max(40, H - 120),
+      r: prop.kind === "asteroids" ? 10 + Math.random() * 16 : prop.kind === "rings" ? 28 + Math.random() * 24 : 6 + Math.random() * 8,
+      rot: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.8,
+      pulse: Math.random() * Math.PI * 2,
+      color: prop.color || "#888",
+    });
+  }
+}
 
 function setActiveMode(id) {
   settings.selectedMode = id;
@@ -151,6 +186,7 @@ function selectMode(id) {
 }
 
 function openModeSelect() {
+  gameState = "modes";
   currentTheme = getTheme(settings.selectedMode || "classic");
   applyThemeToDom(currentTheme);
   renderModeCards();
@@ -189,6 +225,7 @@ function renderLevelMap() {
 }
 
 function openLevelMap() {
+  gameState = "map";
   selectedMapLevel = progress.getUnlocked(currentMode.id);
   renderLevelMap();
   showScreen("map");
@@ -317,6 +354,8 @@ function startGame(fromLevel = 1) {
   document.getElementById("modeLabel").style.color = currentTheme.accent;
   resumeAudio();
   setMusicEnabled(settings.music);
+  rebuildArenaProps();
+  refreshCoinUI();
   last = performance.now();
 }
 
@@ -336,6 +375,72 @@ function resumeGame() {
   last = performance.now();
 }
 
+function openShop() {
+  gameState = "shop";
+  shopTab = "ship";
+  document.querySelectorAll(".shop-tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.tab === shopTab);
+  });
+  showHud(false);
+  renderShop();
+  showScreen("shop");
+}
+
+function renderShop() {
+  refreshCoinUI();
+  document.querySelectorAll(".shop-tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.tab === shopTab);
+  });
+  const grid = document.getElementById("shopGrid");
+  const msg = document.getElementById("shopMsg");
+  msg.textContent = "";
+  grid.innerHTML = "";
+  shop.itemsByType(shopTab).forEach((item) => {
+    const owned = shop.owns(item.id);
+    const equipped = shop.equipped[item.type] === item.id;
+    const card = document.createElement("div");
+    card.className = "shop-item" + (equipped ? " equipped" : "");
+    const priceLabel = item.price === 0 ? "FREE" : `${item.price} COINS`;
+    let action = "";
+    if (equipped) {
+      action = `<button type="button" disabled>EQUIPPED</button>`;
+    } else if (owned) {
+      action = `<button type="button" class="secondary" data-equip="${item.id}">EQUIP</button>`;
+    } else {
+      action = `<button type="button" data-buy="${item.id}">BUY</button>`;
+    }
+    card.innerHTML = `
+      <h3>${item.name}</h3>
+      <p>${item.desc}</p>
+      <div class="shop-price">${owned ? (equipped ? "OWNED · EQUIPPED" : "OWNED") : priceLabel}</div>
+      ${action}
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll("[data-buy]").forEach((btn) => {
+    btn.onclick = () => {
+      const res = shop.buy(btn.getAttribute("data-buy"));
+      if (!res.ok) {
+        msg.textContent =
+          res.reason === "funds" ? "Not enough coins." : "Cannot buy that.";
+        return;
+      }
+      msg.textContent = "Purchased and equipped!";
+      if (shopTab === "prop") rebuildArenaProps();
+      renderShop();
+    };
+  });
+  grid.querySelectorAll("[data-equip]").forEach((btn) => {
+    btn.onclick = () => {
+      shop.equip(btn.getAttribute("data-equip"));
+      msg.textContent = "Equipped.";
+      if (shopTab === "prop") rebuildArenaProps();
+      renderShop();
+    };
+  });
+}
+
 function goHome() {
   gameState = "home";
   betweenWaves = false;
@@ -346,12 +451,14 @@ function goHome() {
   upgradeBanner.classList.add("screen-hidden");
   currentTheme = getTheme(settings.selectedMode || "classic");
   applyThemeToDom(currentTheme);
+  refreshCoinUI();
   showScreen("home");
 }
 
 function openSettings(from) {
   settings.settingsReturn = from;
   settings.syncToggles();
+  gameState = "settings";
   showScreen("settings");
 }
 
@@ -797,6 +904,7 @@ function updateHud() {
       : ` · ${Math.max(0, enemiesToSpawn - spawned) + enemies.length} left`;
   document.getElementById("score").textContent = String(score);
   document.getElementById("xp").textContent = String(xp);
+  refreshCoinUI();
   document.getElementById("hpText").textContent =
     `${Math.max(0, Math.ceil(player.hp))} / ${player.maxHp}`;
   document.getElementById("hpFill").style.width =
@@ -867,6 +975,7 @@ function updatePlaying(dt) {
 
   handleEnemyRams();
   updateAmbience(dt);
+  updateArenaProps(dt);
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -880,12 +989,17 @@ function updatePlaying(dt) {
       if (e.hp <= 0) {
         score += e.kind === "boss" ? 80 : e.kind === "tank" ? 30 : e.kind === "fast" ? 15 : 10;
         xp += e.kind === "boss" ? 10 : e.kind === "tank" ? 4 : 1;
+        const coins = COIN_REWARDS[e.kind] || 2;
+        shop.addCoins(coins);
+        refreshCoinUI();
         addXP(e.x, e.y);
         burst(
           e.x,
           e.y,
           e.kind === "boss" ? 22 : 14,
-          e.kind === "boss" || e.kind === "tank" ? "#ffbd70" : "#8bdcff",
+          (shop.getEquipped("enemy")?.enemy?.[e.kind]) ||
+            currentTheme.enemy[e.kind] ||
+            "#8bdcff",
         );
         if (isBoss(e.kind)) {
           vibrateBossKill();
@@ -978,6 +1092,68 @@ function update(dt) {
   updateHud();
 }
 
+function updateArenaProps(dt) {
+  for (const p of arenaProps) {
+    p.rot += p.spin * dt;
+    p.pulse += dt * 1.6;
+  }
+}
+
+function drawArenaProps() {
+  for (const p of arenaProps) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot || 0);
+    ctx.globalAlpha = 0.55;
+    if (p.kind === "beacons") {
+      const pulse = 0.65 + Math.sin(p.pulse) * 0.25;
+      ctx.globalAlpha = pulse;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r * 1.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = pulse * 0.45;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.kind === "rings") {
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r * 1.35, p.r * 0.45, 0.35, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#94a3b8";
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.kind === "debris") {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r, -p.r * 0.4, p.r * 2, p.r * 0.8);
+      ctx.fillRect(-p.r * 0.3, -p.r, p.r * 0.6, p.r * 2);
+    } else {
+      // asteroids
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        const rr = p.r * (0.75 + ((i * 37) % 5) * 0.06);
+        ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#5c4a3a";
+      ctx.beginPath();
+      ctx.arc(-p.r * 0.25, -p.r * 0.15, p.r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
 function draw() {
   drawSpaceBackground(ctx, W, H, currentTheme, stars, performance.now());
 
@@ -990,9 +1166,21 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
-  if (gameState === "home" || gameState === "modes" || gameState === "map") return;
+  if (
+    gameState === "home" ||
+    gameState === "modes" ||
+    gameState === "map" ||
+    gameState === "shop" ||
+    gameState === "settings"
+  ) {
+    return;
+  }
 
   const theme = currentTheme;
+  const shipSkin = shop.getEquipped("ship")?.ship;
+  const enemySkin = shop.getEquipped("enemy")?.enemy;
+
+  drawArenaProps();
 
   for (const p of powerups) {
     ctx.save();
@@ -1018,7 +1206,10 @@ function draw() {
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
-    const col = theme.enemy[e.kind] || theme.enemy.basic;
+    const col =
+      (enemySkin && enemySkin[e.kind]) ||
+      theme.enemy[e.kind] ||
+      theme.enemy.basic;
     ctx.fillStyle = col;
     ctx.shadowBlur = e.kind === "boss" ? 32 : 20;
     ctx.shadowColor = col;
@@ -1057,8 +1248,8 @@ function draw() {
   ctx.rotate(a);
   ctx.globalAlpha = player.inv > 0 ? 0.5 : 1;
   ctx.shadowBlur = 30;
-  ctx.shadowColor = theme.playerGlow;
-  ctx.fillStyle = theme.player;
+  ctx.shadowColor = shipSkin?.glow || theme.playerGlow;
+  ctx.fillStyle = shipSkin?.body || theme.player;
   ctx.beginPath();
   ctx.moveTo(27, 0);
   ctx.lineTo(-15, -13);
@@ -1066,7 +1257,7 @@ function draw() {
   ctx.lineTo(-15, 13);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = theme.playerCore;
+  ctx.fillStyle = shipSkin?.core || theme.playerCore;
   ctx.beginPath();
   ctx.arc(-3, 0, 6, 0, 7);
   ctx.fill();
@@ -1091,7 +1282,13 @@ function loop(t) {
   } else {
     last = t;
     // Soft ambience on menus
-    if (gameState === "home" || gameState === "modes" || gameState === "map") {
+    if (
+      gameState === "home" ||
+      gameState === "modes" ||
+      gameState === "map" ||
+      gameState === "shop" ||
+      gameState === "settings"
+    ) {
       updateAmbience(dt);
     }
   }
@@ -1123,13 +1320,29 @@ document.getElementById("btnPlay").onclick = () => {
   openModeSelect();
 };
 
+document.getElementById("btnHomeShop").onclick = () => {
+  resumeAudio();
+  openShop();
+};
+
+document.getElementById("btnShopBack").onclick = () => {
+  goHome();
+};
+
+document.querySelectorAll(".shop-tab").forEach((btn) => {
+  btn.onclick = () => {
+    shopTab = btn.dataset.tab;
+    renderShop();
+  };
+});
+
 document.getElementById("btnStartMode").onclick = () => {
   resumeAudio();
   beginMissionFromMenu();
 };
 
 document.getElementById("btnModesBack").onclick = () => {
-  showScreen("home");
+  goHome();
 };
 
 document.getElementById("btnMapStart").onclick = () => {
@@ -1152,10 +1365,18 @@ document.getElementById("btnPauseSettings").onclick = () => openSettings("pause"
 
 document.getElementById("btnSettingsBack").onclick = () => {
   const back = settings.settingsReturn;
-  if (back === "pause") showScreen("pause");
-  else if (back === "modes") showScreen("modes");
-  else if (back === "map") showScreen("map");
-  else showScreen("home");
+  if (back === "pause") {
+    gameState = "paused";
+    showScreen("pause");
+  } else if (back === "modes") {
+    openModeSelect();
+  } else if (back === "map") {
+    openLevelMap();
+  } else if (back === "shop") {
+    openShop();
+  } else {
+    goHome();
+  }
 };
 
 document.getElementById("toggleMusic").onchange = (e) => {
@@ -1186,6 +1407,7 @@ document.getElementById("btnLevelMenu").onclick = goHome;
 initAudio();
 showHud(false);
 applyThemeToDom(currentTheme);
+refreshCoinUI();
 renderModeCards();
 document.getElementById("btnStartMode").textContent = currentMode.hasLevelMap
   ? "SELECT LEVEL"
