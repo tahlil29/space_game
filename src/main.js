@@ -1084,6 +1084,12 @@ function loop(t) {
   if (isActiveGameplay()) {
     last = t;
     update(dt);
+  } else {
+    last = t;
+    // Soft ambience on menus
+    if (gameState === "home" || gameState === "modes" || gameState === "map") {
+      updateAmbience(dt);
+    }
   }
   draw();
   animId = requestAnimationFrame(loop);
