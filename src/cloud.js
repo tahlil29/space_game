@@ -4,12 +4,13 @@ import { auth } from "./auth.js";
 import { userKey } from "./storage.js";
 
 let pushTimer = null;
+let pendingUid = null;
 
-function userDocRef() {
+function userDocRef(uid = auth.userId) {
   const db = getFirebaseDb();
-  if (!db || !auth.userId) return null;
+  if (!db || !uid) return null;
   if (auth.backend !== "firebase") return null;
-  return doc(db, "users", auth.userId);
+  return doc(db, "users", uid);
 }
 
 export async function pullCloudSave() {
@@ -46,13 +47,20 @@ export async function pushCloudSave(immediate = false) {
   if (!isFirebaseConfigured() || auth.backend !== "firebase" || !auth.userId) {
     return;
   }
+  const uidAtSchedule = auth.userId;
+  pendingUid = uidAtSchedule;
+
   const run = async () => {
-    const ref = userDocRef();
+    const uid = pendingUid || auth.userId;
+    if (!uid || auth.backend !== "firebase") return;
+    const ref = userDocRef(uid);
     if (!ref) return;
-    const shopRaw = localStorage.getItem(userKey("shop"));
-    const progressRaw = localStorage.getItem(userKey("progress"));
-    const settingsRaw = localStorage.getItem(userKey("settings"));
-    const lastScore = Number(localStorage.getItem(userKey("last-score")) || 0);
+    // Prefer keys for the uid we're writing (may differ if user switched mid-debounce)
+    const keyFor = (base) => `space-survival:${uid}:${base}`;
+    const shopRaw = localStorage.getItem(keyFor("shop"));
+    const progressRaw = localStorage.getItem(keyFor("progress"));
+    const settingsRaw = localStorage.getItem(keyFor("settings"));
+    const lastScore = Number(localStorage.getItem(keyFor("last-score")) || 0);
     try {
       await setDoc(
         ref,
@@ -74,6 +82,7 @@ export async function pushCloudSave(immediate = false) {
 
   if (immediate) {
     if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = null;
     await run();
     return;
   }

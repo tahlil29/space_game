@@ -149,16 +149,18 @@
         </div>
         <div id="forgotStepOtp" class="auth-form" hidden>
           <div id="otpBanner" class="otp-banner screen-hidden" aria-live="polite"></div>
-          <label class="auth-field">
-            <span>Email code (OTP)</span>
-            <input id="forgotOtp" type="text" inputmode="numeric" maxlength="64" placeholder="6-digit code" autocomplete="one-time-code" />
-          </label>
-          <label class="auth-field">
-            <span>New password</span>
-            <input id="forgotPassword" type="password" maxlength="64" placeholder="At least 6 characters" autocomplete="new-password" />
-          </label>
-          <p class="auth-msg" id="forgotOtpMsg"></p>
-          <button id="btnForgotReset" class="btn btn-primary" type="button">Set new password</button>
+          <form id="forgotResetForm" class="auth-form">
+            <label class="auth-field">
+              <span>Email code (OTP)</span>
+              <input id="forgotOtp" type="text" inputmode="numeric" maxlength="64" placeholder="6-digit code" autocomplete="one-time-code" />
+            </label>
+            <label class="auth-field">
+              <span>New password</span>
+              <input id="forgotPassword" type="password" maxlength="64" placeholder="At least 6 characters" autocomplete="new-password" />
+            </label>
+            <p class="auth-msg" id="forgotOtpMsg"></p>
+            <button id="btnForgotReset" class="btn btn-primary" type="submit">Set new password</button>
+          </form>
         </div>
         <button id="btnForgotBack" class="auth-link" type="button">← Back to login</button>
       </div>

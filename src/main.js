@@ -907,6 +907,7 @@ function goHome() {
   upgradeBanner.classList.add("screen-hidden");
   currentTheme = getTheme(settings.selectedMode || "classic");
   applyThemeToDom(currentTheme);
+  refreshProfileIdentity();
   refreshCoinUI();
   refreshCareerStats();
   showScreen("home");
@@ -940,26 +941,54 @@ function openAuth(message = "") {
 
 async function enterAppAfterAuth(options = {}) {
   const { welcome = "" } = options;
-  try {
-    await pullCloudSave();
-  } catch (err) {
-    console.warn("Cloud pull skipped:", err);
-  }
+  // Show home immediately so signup/login never leave a blank screen
   try {
     loadUserData();
   } catch (err) {
     console.warn("Load user data failed:", err);
-  }
-  try {
-    await pushCloudSave(true);
-  } catch (err) {
-    console.warn("Cloud push skipped:", err);
   }
   goHome();
   refreshProfileIdentity();
   refreshCoinUI();
   refreshCareerStats();
   if (welcome) showAppToast(welcome);
+
+  // Cloud sync in background (do not block UI)
+  Promise.resolve()
+    .then(async () => {
+      try {
+        await Promise.race([
+          pullCloudSave(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("pull timeout")), 8000)),
+        ]);
+      } catch (err) {
+        console.warn("Cloud pull skipped:", err);
+      }
+      try {
+        loadUserData();
+        refreshCoinUI();
+        refreshCareerStats();
+      } catch {
+        /* ignore */
+      }
+      try {
+        // Persist defaults for brand-new accounts
+        shop.save();
+        progress.save();
+        settings.save();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await Promise.race([
+          pushCloudSave(true),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("push timeout")), 8000)),
+        ]);
+      } catch (err) {
+        console.warn("Cloud push skipped:", err);
+      }
+    })
+    .catch(() => {});
 }
 
 function showAppToast(text, ms = 2800) {
@@ -973,10 +1002,31 @@ function showAppToast(text, ms = 2800) {
   }, ms);
 }
 
+function setAuthBusy(busy) {
+  document.querySelectorAll("#screen-auth button, #screen-auth input").forEach((el) => {
+    if (el.id === "btnForgotBack" || el.id === "btnGoLogin" || el.id === "btnGoSignup") {
+      el.disabled = busy;
+      return;
+    }
+    if (el.tagName === "INPUT") el.readOnly = busy;
+    else el.disabled = busy;
+  });
+}
+
 async function logoutToAuth() {
+  try {
+    await Promise.race([
+      pushCloudSave(true),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]);
+  } catch {
+    /* ignore */
+  }
   await auth.logout();
   loadUserData();
   openAuth("Signed out. Log in or sign up to continue.");
+  const msg = document.getElementById("loginMsg");
+  if (msg) msg.classList.remove("auth-msg-ok");
 }
 
 function openSettings(from) {
@@ -2019,13 +2069,14 @@ function openForgotView() {
   document.getElementById("forgotStepEmail").hidden = false;
   document.getElementById("forgotStepOtp").hidden = true;
   document.getElementById("forgotLede").textContent =
-    "enter your email to get a one-time code";
+    "Enter your email to get a one-time code";
   const msg = document.getElementById("forgotMsg");
   msg.textContent = "";
   msg.classList.remove("auth-msg-ok");
   document.getElementById("forgotOtpMsg").textContent = "";
   document.getElementById("forgotOtp").value = "";
   document.getElementById("forgotPassword").value = "";
+  document.getElementById("otpBanner")?.classList.add("screen-hidden");
   const fromLogin = document.getElementById("loginEmail")?.value || "";
   document.getElementById("forgotEmail").value = fromLogin;
 }
@@ -2045,6 +2096,7 @@ document.getElementById("loginForm").onsubmit = async (e) => {
   msg.textContent = "";
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
+  setAuthBusy(true);
   try {
     const res = await auth.login(email, password);
     if (!res.ok) {
@@ -2056,6 +2108,8 @@ document.getElementById("loginForm").onsubmit = async (e) => {
   } catch (err) {
     console.warn(err);
     msg.textContent = "Login failed. Check your email and password.";
+  } finally {
+    setAuthBusy(false);
   }
 };
 
@@ -2066,6 +2120,7 @@ document.getElementById("signupForm").onsubmit = async (e) => {
   msg.textContent = "";
   const email = document.getElementById("signupEmail").value.trim();
   const password = document.getElementById("signupPassword").value;
+  setAuthBusy(true);
   try {
     const res = await auth.register(email, password);
     if (!res.ok) {
@@ -2079,6 +2134,8 @@ document.getElementById("signupForm").onsubmit = async (e) => {
   } catch (err) {
     console.warn(err);
     msg.textContent = "Could not create account. Try again.";
+  } finally {
+    setAuthBusy(false);
   }
 };
 
@@ -2108,6 +2165,13 @@ document.getElementById("btnForgotSend").onclick = async () => {
   msg.classList.remove("auth-msg-ok");
   msg.textContent = "";
   const email = document.getElementById("forgotEmail").value.trim();
+  if (!email) {
+    msg.textContent = "Enter a valid email address.";
+    return;
+  }
+  const sendBtn = document.getElementById("btnForgotSend");
+  sendBtn.disabled = true;
+  sendBtn.textContent = "Sending…";
   try {
     const res = await auth.sendPasswordOtp(email);
     if (!res.ok) {
@@ -2134,19 +2198,26 @@ document.getElementById("btnForgotSend").onclick = async () => {
   } catch (err) {
     console.warn(err);
     msg.textContent = "Could not send code. Try again.";
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send code";
   }
 };
 
-document.getElementById("btnForgotReset").onclick = async () => {
+document.getElementById("forgotResetForm").onsubmit = async (e) => {
+  e.preventDefault();
   const msg = document.getElementById("forgotOtpMsg");
   msg.classList.remove("auth-msg-ok");
   const email = document.getElementById("forgotEmail").value.trim();
   const otp = document.getElementById("forgotOtp").value;
   const password = document.getElementById("forgotPassword").value;
+  const btn = document.getElementById("btnForgotReset");
+  btn.disabled = true;
+  btn.textContent = "Updating…";
   try {
     const res = await auth.resetWithOtp(email, otp, password);
     if (!res.ok) {
-      msg.textContent = authFailureMessage(res, "Could not reset password.");
+      msg.textContent = res.detail || authFailureMessage(res, "Could not reset password.");
       return;
     }
     if (res.openEmailLink) {
@@ -2156,6 +2227,7 @@ document.getElementById("btnForgotReset").onclick = async () => {
         "Code verified. Open the reset link in your email to finish, then log in with the new password.";
       loginMsg.classList.add("auth-msg-ok");
       document.getElementById("loginEmail").value = email;
+      showAppToast("Check your email to finish reset.");
       return;
     }
     if (res.needLogin) {
@@ -2173,6 +2245,9 @@ document.getElementById("btnForgotReset").onclick = async () => {
   } catch (err) {
     console.warn(err);
     msg.textContent = "Could not reset password. Try again.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Set new password";
   }
 };
 
@@ -2196,6 +2271,11 @@ applyThemeToDom(currentTheme);
   // Completing Firebase reset when user opens the email action link
   if (auth.getResetOobFromUrl()) {
     const finished = await auth.completeResetFromEmailLink();
+    try {
+      await auth.logout();
+    } catch {
+      /* ignore */
+    }
     if (finished.ok) {
       openAuth("Password updated. Log in with your new password.");
       document.getElementById("loginMsg")?.classList.add("auth-msg-ok");

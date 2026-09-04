@@ -4,9 +4,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    // One-time password-reset codes (hashed). Clients create/get/delete by email key.
+    // OTP hashes — create only; clients verify against localStorage primarily.
+    // Prefer locking this down further with App Check / Cloud Functions in production.
     match /passwordOtps/{emailKey} {
-      allow create, get, delete: if true;
+      allow create: if request.resource.data.keys().hasAll(['hash', 'expires', 'email'])
+        && request.resource.data.email is string
+        && request.resource.data.hash is string;
+      allow get: if true;
+      allow delete: if true;
       allow list, update: if false;
     }
   }

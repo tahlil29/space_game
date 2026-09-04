@@ -90,8 +90,17 @@ function displayNameFromEmail(email) {
   return local.replace(/[^a-z0-9_\-]/gi, "").slice(0, 20) || "pilot";
 }
 
+/** Stable unique local user id from full email (avoids alice@x / alice@y collisions). */
+async function localUserIdFromEmail(email) {
+  const digest = await hashValue(`uid:${normalizeEmail(email)}`);
+  return `user_${digest.slice(0, 16)}`;
+}
+
 function emailDocKey(email) {
-  return normalizeEmail(email).replace(/[^a-z0-9]/g, "_").slice(0, 80);
+  // Include a short hash so +/. variants cannot collide
+  const mail = normalizeEmail(email);
+  const safe = mail.replace(/[^a-z0-9]/g, "_").slice(0, 48);
+  return `${safe}_${mail.length}`;
 }
 
 function makeOtp() {
@@ -244,39 +253,59 @@ async function updateFirebasePasswordWithRefresh(email, newPassword) {
   const key = apiKey();
   if (!refresh || !key) return false;
 
-  const tokenRes = await fetch(
-    `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(key)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: refresh,
-      }),
-    },
-  );
-  const tokenData = await tokenRes.json();
-  const idToken = tokenData.id_token || tokenData.idToken;
-  if (!idToken) return false;
+  const withTimeout = (p, ms) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+    ]);
 
-  const updateRes = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${encodeURIComponent(key)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        idToken,
-        password: newPassword,
-        returnSecureToken: true,
-      }),
-    },
-  );
-  const updateData = await updateRes.json();
-  if (updateData.error) return false;
-  if (updateData.refreshToken) {
-    localStorage.setItem(REFRESH_PREFIX + normalizeEmail(email), updateData.refreshToken);
+  try {
+    const tokenRes = await withTimeout(
+      fetch(
+        `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "refresh_token",
+            refresh_token: refresh,
+          }),
+        },
+      ),
+      6000,
+    );
+    const tokenData = await tokenRes.json();
+    const idToken = tokenData.id_token || tokenData.idToken;
+    if (!idToken) return false;
+
+    const updateRes = await withTimeout(
+      fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            password: newPassword,
+            returnSecureToken: true,
+          }),
+        },
+      ),
+      6000,
+    );
+    const updateData = await updateRes.json();
+    if (updateData.error) return false;
+    if (updateData.refreshToken) {
+      localStorage.setItem(
+        REFRESH_PREFIX + normalizeEmail(email),
+        updateData.refreshToken,
+      );
+    }
+    return true;
+  } catch (err) {
+    console.warn("Password update via refresh failed:", err?.message || err);
+    return false;
   }
-  return true;
 }
 
 export const auth = {
@@ -380,9 +409,10 @@ export const auth = {
     if (db.accounts[mail]) return { ok: false, reason: "exists" };
     const salt = randomSalt();
     const hash = await hashPassword(password, salt);
-    db.accounts[mail] = { salt, hash, createdAt: Date.now() };
+    const userId = await localUserIdFromEmail(mail);
+    db.accounts[mail] = { salt, hash, createdAt: Date.now(), userId };
     const session = {
-      userId: `user_${display}`,
+      userId,
       username: display,
       email: mail,
       isGuest: false,
@@ -398,7 +428,6 @@ export const auth = {
     const mail = normalizeEmail(email);
     if (!isValidEmail(mail)) return { ok: false, reason: "email" };
     if (!password) return { ok: false, reason: "credentials" };
-    if (password.length < 6) return { ok: false, reason: "password" };
 
     if (isFirebaseConfigured()) {
       try {
@@ -428,8 +457,13 @@ export const auth = {
     const hash = await hashPassword(password, account.salt);
     if (hash !== account.hash) return { ok: false, reason: "credentials" };
     const display = displayNameFromEmail(mail);
+    const userId = account.userId || (await localUserIdFromEmail(mail));
+    if (!account.userId) {
+      account.userId = userId;
+      saveAuthDb(db);
+    }
     const session = {
-      userId: `user_${display}`,
+      userId,
       username: display,
       email: mail,
       isGuest: false,
@@ -476,33 +510,50 @@ export const auth = {
     storeOtpRecord({ email: mail, hash, expires });
 
     if (isFirebaseConfigured()) {
-      // Firestore is optional — never block OTP delivery on rules/network
+      const withTimeout = (p, ms) =>
+        Promise.race([
+          p,
+          new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+        ]);
+
+      // Firestore is optional — never block OTP delivery
       try {
         const db = getFirebaseDb();
         if (db) {
-          await setDoc(doc(db, "passwordOtps", emailDocKey(mail)), {
-            hash,
-            expires,
-            email: mail,
-            createdAt: serverTimestamp(),
-          });
+          await withTimeout(
+            setDoc(doc(db, "passwordOtps", emailDocKey(mail)), {
+              hash,
+              expires,
+              email: mail,
+              createdAt: serverTimestamp(),
+            }),
+            4000,
+          );
         }
       } catch (err) {
-        console.warn("OTP Firestore write skipped:", err?.code || err?.message);
+        console.warn("OTP Firestore write skipped:", err?.message || err);
       }
 
-      const emailed = await emailOtpViaEmailJs(mail, otp).catch(() => false);
+      let emailed = false;
       try {
-        await sendPasswordResetEmail(getFirebaseAuth(), mail, {
-          url: `${window.location.origin}${window.location.pathname}`,
-          handleCodeInApp: false,
-        });
+        emailed = await withTimeout(emailOtpViaEmailJs(mail, otp), 4000);
+      } catch {
+        emailed = false;
+      }
+      try {
+        await withTimeout(
+          sendPasswordResetEmail(getFirebaseAuth(), mail, {
+            url: `${window.location.origin}${window.location.pathname}`,
+            handleCodeInApp: false,
+          }),
+          5000,
+        );
       } catch (err) {
-        console.warn("Firebase reset email:", err?.code || err?.message);
+        console.warn("Firebase reset email:", err?.message || err);
       }
 
       // Always return on-screen OTP so the user can continue without email delivery
-      return { ok: true, emailed, demoOtp: otp };
+      return { ok: true, emailed: Boolean(emailed), demoOtp: otp };
     }
 
     const db = loadAuthDb();
@@ -542,7 +593,10 @@ export const auth = {
       try {
         const db = getFirebaseDb();
         if (db) {
-          const snap = await getDoc(doc(db, "passwordOtps", emailDocKey(mail)));
+          const snap = await Promise.race([
+            getDoc(doc(db, "passwordOtps", emailDocKey(mail))),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+          ]);
           if (snap.exists()) record = { ...snap.data(), email: mail };
         }
       } catch {
@@ -564,16 +618,38 @@ export const auth = {
         clearPendingReset();
         try {
           const db = getFirebaseDb();
-          if (db) await deleteDoc(doc(db, "passwordOtps", emailDocKey(mail)));
+          if (db) {
+            await Promise.race([
+              deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
+              new Promise((r) => setTimeout(r, 2000)),
+            ]);
+          }
         } catch {
           /* ignore */
         }
         return { ok: true, needLogin: true };
       }
 
-      // Fallback: save pending password for email-link completion
+      // No refresh token on this device — must use Firebase email reset link
       savePendingReset(mail, newPassword);
       clearOtpRecord();
+      try {
+        await Promise.race([
+          sendPasswordResetEmail(getFirebaseAuth(), mail, {
+            url: `${window.location.origin}${window.location.pathname}`,
+            handleCodeInApp: false,
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
+        ]);
+      } catch (err) {
+        clearPendingReset();
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code, err?.message) || "firebase",
+          detail:
+            "OTP ok, but password could not be changed on this device. Log in once first, or use the email reset link.",
+        };
+      }
       return {
         ok: true,
         needLogin: true,
@@ -589,8 +665,10 @@ export const auth = {
     account.salt = salt;
     account.hash = await hashPassword(newPassword, salt);
     const display = displayNameFromEmail(mail);
+    const userId = account.userId || (await localUserIdFromEmail(mail));
+    account.userId = userId;
     const session = {
-      userId: `user_${display}`,
+      userId,
       username: display,
       email: mail,
       isGuest: false,
