@@ -69,35 +69,61 @@
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-fx" aria-hidden="true"></div>
+
+    <aside id="profilePanel" class="profile-panel" aria-label="Pilot profile">
+      <div class="profile-head">
+        <span class="profile-avatar" aria-hidden="true"></span>
+        <div>
+          <div class="profile-title">PILOT</div>
+          <div class="profile-name">Commander</div>
+        </div>
+      </div>
+      <div class="profile-grid">
+        <div class="profile-stat">
+          <span>COINS</span>
+          <b id="profileCoins">0</b>
+        </div>
+        <div class="profile-stat">
+          <span>BEST</span>
+          <b id="profileBest">0</b>
+        </div>
+        <div class="profile-stat">
+          <span>SCORE</span>
+          <b id="profileScore">0</b>
+        </div>
+        <div class="profile-stat">
+          <span>PROGRESS</span>
+          <b id="profileProgress">1/10</b>
+        </div>
+      </div>
+    </aside>
+
     <div class="menu-card home-card arcade-panel">
       <div class="panel-corners" aria-hidden="true"></div>
-      <div class="badge pulse-badge">◆ ARCADE MISSION ◆</div>
-      <p class="pilot-tag">PILOT READY</p>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
-      <p class="subtitle">
-        Blast hostiles · rack up coins · unlock ships, enemies &amp; arena props.
-      </p>
-      <div class="coin-chip home-coin-chip">
-        <span class="coin-icon" aria-hidden="true"></span>
-        <span class="coin-label">CREDITS</span>
-        <b id="homeCoins">0</b>
-      </div>
-      <div class="career-row" id="careerStats">
-        <div class="career-stat"><span>BEST</span><b id="careerBest">0</b></div>
-        <div class="career-stat"><span>SECTORS</span><b id="careerSectors">1</b></div>
-        <div class="career-stat"><span>ENDLESS</span><b id="careerEndless">W0</b></div>
-      </div>
-      <div class="btn-stack">
-        <button id="btnPlay" class="btn btn-primary btn-cta" type="button">
-          <span class="btn-kicker">START</span>
-          <span class="btn-main">PLAY MISSION</span>
+      <div class="btn-stack home-actions">
+        <button id="btnPlay" class="btn btn-primary btn-cta home-btn" type="button">
+          <span class="btn-icon" aria-hidden="true">▶</span>
+          <span class="btn-copy">
+            <span class="btn-kicker">ALL MODES</span>
+            <span class="btn-main">PLAY</span>
+          </span>
         </button>
-        <button id="btnHomeShop" class="btn btn-secondary" type="button">
-          <span class="btn-main">★ OUTFITTER SHOP</span>
+        <button id="btnHomeShop" class="btn btn-secondary home-btn" type="button">
+          <span class="btn-icon shop-ico" aria-hidden="true">◎</span>
+          <span class="btn-copy">
+            <span class="btn-kicker">COINS &amp; SKINS</span>
+            <span class="btn-main">SHOP</span>
+          </span>
         </button>
-        <button id="btnHomeSettings" class="btn btn-ghost" type="button">SETTINGS</button>
+        <button id="btnHomeSettings" class="btn btn-ghost home-btn" type="button">
+          <span class="btn-icon" aria-hidden="true">⚙</span>
+          <span class="btn-copy">
+            <span class="btn-kicker">SOUND &amp; VIBRATION</span>
+            <span class="btn-main">SETTINGS</span>
+          </span>
+        </button>
       </div>
-      <p class="home-footer">Clear waves · earn stars · survive the void</p>
     </div>
   </div>
 
@@ -107,18 +133,27 @@
     <div class="menu-fx" aria-hidden="true"></div>
     <div class="menu-card shop-card arcade-panel">
       <div class="panel-corners" aria-hidden="true"></div>
-      <div class="badge">◆ LOADOUT BAY ◆</div>
-      <h2 class="title-sm">OUTFITTER</h2>
-      <p class="subtitle">Spend combat credits. Equip skins and arena props.</p>
-      <div class="coin-chip shop-coin-chip">
-        <span class="coin-icon" aria-hidden="true"></span>
-        <span class="coin-label">CREDITS</span>
-        <b id="shopCoins">0</b>
+      <div class="shop-header">
+        <div>
+          <div class="badge">◆ ARMORY ◆</div>
+          <h2 class="title-sm">SHOP</h2>
+        </div>
+        <div class="coin-chip shop-coin-chip">
+          <span class="coin-icon" aria-hidden="true"></span>
+          <span class="coin-label">COINS</span>
+          <b id="shopCoins">0</b>
+        </div>
       </div>
       <div class="shop-tabs">
-        <button type="button" class="shop-tab active" data-tab="ship">SHIPS</button>
-        <button type="button" class="shop-tab" data-tab="enemy">ENEMIES</button>
-        <button type="button" class="shop-tab" data-tab="prop">PROPS</button>
+        <button type="button" class="shop-tab active" data-tab="ship">
+          <span class="tab-ico tab-ico-ship" aria-hidden="true"></span> SHIPS
+        </button>
+        <button type="button" class="shop-tab" data-tab="enemy">
+          <span class="tab-ico tab-ico-enemy" aria-hidden="true"></span> ENEMIES
+        </button>
+        <button type="button" class="shop-tab" data-tab="prop">
+          <span class="tab-ico tab-ico-prop" aria-hidden="true"></span> THEMES
+        </button>
       </div>
       <div class="shop-grid" id="shopGrid"></div>
       <p class="shop-msg" id="shopMsg"></p>

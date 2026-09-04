@@ -12,6 +12,7 @@ export const SHOP_ITEMS = [
   {
     id: "ship_default",
     type: "ship",
+    icon: "ship-aurora",
     name: "Aurora Hull",
     desc: "Default cyan fighter",
     price: 0,
@@ -20,6 +21,7 @@ export const SHOP_ITEMS = [
   {
     id: "ship_crimson",
     type: "ship",
+    icon: "ship-blade",
     name: "Crimson Blade",
     desc: "Scarlet strike craft",
     price: 40,
@@ -28,6 +30,7 @@ export const SHOP_ITEMS = [
   {
     id: "ship_violet",
     type: "ship",
+    icon: "ship-phantom",
     name: "Void Phantom",
     desc: "Purple stealth frame",
     price: 55,
@@ -36,15 +39,35 @@ export const SHOP_ITEMS = [
   {
     id: "ship_gold",
     type: "ship",
+    icon: "ship-solar",
     name: "Solar Edge",
     desc: "Gold-trimmed interceptor",
     price: 80,
     ship: { body: "#fff7e0", core: "#fbbf24", glow: "#f59e0b" },
   },
+  {
+    id: "ship_ember",
+    type: "ship",
+    icon: "ship-ember",
+    name: "Ember Lance",
+    desc: "Molten orange assault frame",
+    price: 95,
+    ship: { body: "#ffe8d6", core: "#ff7a18", glow: "#ff9f43" },
+  },
+  {
+    id: "ship_neon",
+    type: "ship",
+    icon: "ship-neon",
+    name: "Neon Drift",
+    desc: "Electric teal racer hull",
+    price: 110,
+    ship: { body: "#e7fff9", core: "#14b8a6", glow: "#2dd4bf" },
+  },
   // Enemy skins
   {
     id: "enemy_default",
     type: "enemy",
+    icon: "enemy-pack",
     name: "Standard Hostiles",
     desc: "Default enemy colors",
     price: 0,
@@ -58,6 +81,7 @@ export const SHOP_ITEMS = [
   {
     id: "enemy_ice",
     type: "enemy",
+    icon: "enemy-ice",
     name: "Ice Swarm",
     desc: "Frozen crystal foes",
     price: 50,
@@ -71,6 +95,7 @@ export const SHOP_ITEMS = [
   {
     id: "enemy_toxic",
     type: "enemy",
+    icon: "enemy-toxic",
     name: "Toxic Horde",
     desc: "Acid-green invaders",
     price: 65,
@@ -84,6 +109,7 @@ export const SHOP_ITEMS = [
   {
     id: "enemy_shadow",
     type: "enemy",
+    icon: "enemy-shadow",
     name: "Shadow Legion",
     desc: "Dark violet raiders",
     price: 90,
@@ -94,18 +120,34 @@ export const SHOP_ITEMS = [
       boss: "#7c3aed",
     },
   },
-  // Props (decorative gameplay props)
+  {
+    id: "enemy_solar",
+    type: "enemy",
+    icon: "enemy-solar",
+    name: "Solar Raiders",
+    desc: "Burning amber swarm",
+    price: 100,
+    enemy: {
+      basic: "#fdba74",
+      fast: "#fcd34d",
+      tank: "#fb923c",
+      boss: "#f97316",
+    },
+  },
+  // Arena themes / props
   {
     id: "prop_none",
     type: "prop",
-    name: "No Props",
-    desc: "Clean arena",
+    icon: "theme-clear",
+    name: "Clear Void",
+    desc: "Clean arena, no props",
     price: 0,
     prop: { kind: "none" },
   },
   {
     id: "prop_asteroids",
     type: "prop",
+    icon: "theme-rock",
     name: "Asteroid Field",
     desc: "Drifting rocks in the arena",
     price: 35,
@@ -114,6 +156,7 @@ export const SHOP_ITEMS = [
   {
     id: "prop_beacons",
     type: "prop",
+    icon: "theme-beacon",
     name: "Nav Beacons",
     desc: "Glowing marker buoys",
     price: 45,
@@ -122,6 +165,7 @@ export const SHOP_ITEMS = [
   {
     id: "prop_debris",
     type: "prop",
+    icon: "theme-scrap",
     name: "Wreck Debris",
     desc: "Scattered scrap metal",
     price: 30,
@@ -130,10 +174,20 @@ export const SHOP_ITEMS = [
   {
     id: "prop_rings",
     type: "prop",
+    icon: "theme-rings",
     name: "Energy Rings",
     desc: "Soft pulse rings in space",
     price: 70,
     prop: { kind: "rings", count: 4, color: "#c77dff" },
+  },
+  {
+    id: "prop_nebula",
+    type: "prop",
+    icon: "theme-nebula",
+    name: "Nebula Drift",
+    desc: "Soft gas clouds as arena props",
+    price: 85,
+    prop: { kind: "beacons", count: 6, color: "#f0abfc" },
   },
 ];
 

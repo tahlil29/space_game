@@ -198,11 +198,11 @@ applyThemeToDom(currentTheme);
 
 function refreshCoinUI() {
   const c = String(shop.coins);
-  const home = document.getElementById("homeCoins");
   const shopEl = document.getElementById("shopCoins");
   const hudCoins = document.getElementById("hudCoins");
-  if (home) home.textContent = c;
+  const profileCoins = document.getElementById("profileCoins");
   if (shopEl) shopEl.textContent = c;
+  if (profileCoins) profileCoins.textContent = c;
   if (hudCoins) {
     if (hudCoins.textContent !== c) {
       hudCoins.parentElement?.classList.add("coin-flash");
@@ -222,13 +222,14 @@ function refreshCareerStats() {
     progress.classic?.unlocked || 1,
     progress.boss?.unlocked || 1,
   );
-  const endlessWave = progress.endless?.bestWave || 0;
-  const bestEl = document.getElementById("careerBest");
-  const secEl = document.getElementById("careerSectors");
-  const endEl = document.getElementById("careerEndless");
+  const lastScore = Number(localStorage.getItem("space-survival-last-score") || 0);
+  const bestEl = document.getElementById("profileBest");
+  const scoreEl = document.getElementById("profileScore");
+  const progEl = document.getElementById("profileProgress");
   if (bestEl) bestEl.textContent = String(best);
-  if (secEl) secEl.textContent = String(sectors);
-  if (endEl) endEl.textContent = `W${endlessWave}`;
+  if (scoreEl) scoreEl.textContent = String(lastScore);
+  if (progEl) progEl.textContent = `${sectors}/${MAP_LEVEL_COUNT}`;
+  refreshCoinUI();
 }
 
 function spawnFloater(x, y, text, color = "#ffd56b") {
@@ -780,24 +781,24 @@ function shopRarity(item) {
 }
 
 function shopPreviewHtml(item) {
+  const icon = item.icon || item.type;
+  let art = `<span class="shop-icon shop-icon-${icon}" aria-hidden="true"></span>`;
   if (item.type === "ship" && item.ship) {
-    return `<div class="shop-preview" style="--ship-body:${item.ship.body};--ship-glow:${item.ship.glow}">
+    art += `<div class="shop-preview" style="--ship-body:${item.ship.body};--ship-glow:${item.ship.glow}">
       <span class="shop-ship-preview" aria-hidden="true"></span>
       <span class="shop-swatch" style="--swatch:${item.ship.core}"></span>
       <span class="shop-swatch" style="--swatch:${item.ship.glow}"></span>
     </div>`;
-  }
-  if (item.type === "enemy" && item.enemy) {
+  } else if (item.type === "enemy" && item.enemy) {
     const cols = [item.enemy.basic, item.enemy.fast, item.enemy.tank, item.enemy.boss];
-    return `<div class="shop-preview">${cols
+    art += `<div class="shop-preview">${cols
       .map((c) => `<span class="shop-swatch" style="--swatch:${c}"></span>`)
       .join("")}</div>`;
-  }
-  if (item.type === "prop" && item.prop) {
+  } else if (item.type === "prop" && item.prop) {
     const c = item.prop.color || "#64748b";
-    return `<div class="shop-preview"><span class="shop-swatch" style="--swatch:${c}"></span></div>`;
+    art += `<div class="shop-preview"><span class="shop-swatch" style="--swatch:${c}"></span></div>`;
   }
-  return "";
+  return `<div class="shop-art">${art}</div>`;
 }
 
 function renderShop() {
@@ -814,8 +815,11 @@ function renderShop() {
     const equipped = shop.equipped[item.type] === item.id;
     const rarity = shopRarity(item);
     const card = document.createElement("div");
-    card.className = "shop-item" + (equipped ? " equipped" : "");
-    const priceLabel = item.price === 0 ? "FREE DROP" : `◎ ${item.price}`;
+    card.className =
+      "shop-item" +
+      (equipped ? " equipped" : "") +
+      ` rarity-${rarity.cls}`;
+    const priceLabel = item.price === 0 ? "FREE" : `◎ ${item.price}`;
     let action = "";
     if (equipped) {
       action = `<button type="button" disabled>EQUIPPED</button>`;
@@ -826,11 +830,13 @@ function renderShop() {
     }
     card.innerHTML = `
       ${shopPreviewHtml(item)}
-      <div class="shop-rarity ${rarity.cls}">${rarity.label}</div>
-      <h3>${item.name}</h3>
-      <p>${item.desc}</p>
-      <div class="shop-price">${owned ? (equipped ? "OWNED · ACTIVE" : "OWNED") : priceLabel}</div>
-      ${action}
+      <div class="shop-meta">
+        <div class="shop-rarity ${rarity.cls}">${rarity.label}</div>
+        <h3>${item.name}</h3>
+        <p>${item.desc}</p>
+        <div class="shop-price">${owned ? (equipped ? "OWNED · ACTIVE" : "OWNED") : priceLabel}</div>
+        ${action}
+      </div>
     `;
     grid.appendChild(card);
   });
@@ -840,11 +846,12 @@ function renderShop() {
       const res = shop.buy(btn.getAttribute("data-buy"));
       if (!res.ok) {
         msg.textContent =
-          res.reason === "funds" ? "Not enough credits." : "Cannot buy that.";
+          res.reason === "funds" ? "Not enough coins." : "Cannot buy that.";
         return;
       }
       msg.textContent = "Purchased and equipped!";
       if (shopTab === "prop") rebuildArenaProps();
+      refreshCareerStats();
       renderShop();
     };
   });
@@ -1762,6 +1769,11 @@ function gameOver() {
   document.getElementById("goModeLine").textContent = `Mode: ${currentMode.name}`;
   document.getElementById("goMessage").textContent =
     `Destroyed on level ${getLevel(wave)}, wave ${wave}. Final score: ${score}.`;
+  try {
+    localStorage.setItem("space-survival-last-score", String(score));
+  } catch {
+    /* ignore */
+  }
   refreshCareerStats();
   showScreen("gameover");
 }
