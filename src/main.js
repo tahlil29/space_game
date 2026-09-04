@@ -6,12 +6,22 @@ import {
   playShoot,
   playExplosion,
 } from "./audio.js";
+import {
+  MODES,
+  MODE_IDS,
+  getMode,
+  waveEnemyCount,
+  pickEnemyKind,
+  enemyStats,
+  starsHtml,
+} from "./modes.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const screens = {
   home: document.getElementById("screen-home"),
+  modes: document.getElementById("screen-modes"),
   settings: document.getElementById("screen-settings"),
   pause: document.getElementById("screen-pause"),
   gameover: document.getElementById("screen-gameover"),
@@ -21,6 +31,7 @@ const hud = document.getElementById("hud");
 const healthWrap = document.getElementById("healthWrap");
 const help = document.getElementById("help");
 const upgradeBanner = document.getElementById("upgradeBanner");
+const modeGrid = document.getElementById("modeGrid");
 
 let W;
 let H;
@@ -48,6 +59,7 @@ let dashCD;
 let animId;
 let bossSpawned;
 let upgradeTargets;
+let currentMode = getMode(settings.selectedMode || "classic");
 const UPGRADE_HITS = 6;
 
 function isActiveGameplay() {
@@ -56,6 +68,7 @@ function isActiveGameplay() {
 
 settings.load();
 settings.syncToggles();
+currentMode = getMode(settings.selectedMode || "classic");
 
 function showScreen(name) {
   Object.entries(screens).forEach(([key, el]) => {
@@ -68,6 +81,38 @@ function showHud(visible) {
   hud.classList.toggle("screen-hidden", !visible);
   healthWrap.classList.toggle("screen-hidden", !visible);
   help.classList.toggle("screen-hidden", !visible);
+}
+
+function renderModeCards() {
+  modeGrid.innerHTML = "";
+  MODE_IDS.forEach((id) => {
+    const mode = MODES[id];
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mode-card" + (settings.selectedMode === id ? " selected" : "");
+    btn.style.setProperty("--mode-accent", mode.accent);
+    btn.dataset.mode = id;
+    btn.innerHTML = `
+      <span class="mode-name">${mode.name}</span>
+      <span class="mode-stars" aria-label="Difficulty ${mode.difficulty} of 5">${starsHtml(mode.difficulty)}</span>
+      <span class="mode-tag">${mode.tagline}</span>
+      <span class="mode-desc">${mode.description}</span>
+    `;
+    btn.onclick = () => selectMode(id);
+    modeGrid.appendChild(btn);
+  });
+}
+
+function selectMode(id) {
+  settings.selectedMode = id;
+  settings.save();
+  currentMode = getMode(id);
+  renderModeCards();
+}
+
+function openModeSelect() {
+  renderModeCards();
+  showScreen("modes");
 }
 
 function resize() {
@@ -122,6 +167,7 @@ addEventListener("mouseup", () => {
 });
 
 function reset() {
+  currentMode = getMode(settings.selectedMode || "classic");
   player = {
     x: W / 2,
     y: H / 2,
@@ -143,9 +189,9 @@ function reset() {
   score = 0;
   xp = 0;
   wave = 1;
-  enemiesToSpawn = 5;
+  enemiesToSpawn = waveEnemyCount(currentMode, wave);
   spawned = 0;
-  spawnTimer = 1.4;
+  spawnTimer = currentMode.spawnInterval;
   betweenWaves = false;
   shootCD = 0;
   dashCD = 0;
@@ -158,6 +204,8 @@ function startGame() {
   gameState = "playing";
   showScreen(null);
   showHud(true);
+  document.getElementById("modeLabel").textContent = currentMode.hudLabel;
+  document.getElementById("modeLabel").style.color = currentMode.accent;
   resumeAudio();
   setMusicEnabled(settings.music);
   last = performance.now();
@@ -194,22 +242,8 @@ function openSettings(from) {
 }
 
 function spawnEnemy(forcedKind) {
-  const type = Math.random();
-  const kind =
-    forcedKind ||
-    (type < 0.55 ? "basic" : type < 0.78 ? "fast" : type < 0.92 ? "tank" : "boss");
-
-  const stats = {
-    basic: { r: 16, hp: 2, speed: 78 + wave * 5, damage: 16 },
-    fast: { r: 11, hp: 1, speed: 135 + wave * 6, damage: 11 },
-    tank: { r: 26, hp: 5, speed: 45 + wave * 3, damage: 22 },
-    boss: {
-      r: 34,
-      hp: 12 + wave * 2,
-      speed: 38 + wave * 2,
-      damage: 30,
-    },
-  }[kind];
+  const kind = forcedKind || pickEnemyKind(currentMode);
+  const stats = enemyStats(kind, wave, currentMode);
 
   const side = Math.floor(Math.random() * 4);
   let ex;
@@ -307,56 +341,50 @@ function dash() {
   burst(player.x, player.y, 16, "#ffffff");
 }
 
-function separateEnemiesFromPlayer() {
-  for (const e of enemies) {
-    const dx = e.x - player.x;
-    const dy = e.y - player.y;
-    const dist = Math.hypot(dx, dy) || 0.001;
-    const minDist = player.r + e.r + 6;
-    if (dist >= minDist) continue;
-    const overlap = minDist - dist;
-    const nx = dx / dist;
-    const ny = dy / dist;
-    e.x += nx * overlap * 0.9;
-    e.y += ny * overlap * 0.9;
-    player.x = Math.max(
-      player.r,
-      Math.min(W - player.r, player.x - nx * overlap * 0.1),
-    );
-    player.y = Math.max(
-      player.r,
-      Math.min(H - player.r, player.y - ny * overlap * 0.1),
-    );
-  }
-}
+const RAM_DAMAGE = { fast: 7, basic: 11, tank: 19, boss: 34 };
 
-function applyContactDamage(dt) {
-  if (player.inv > 0) return;
-  let rawDamage = 0;
-  let hits = 0;
-
-  for (const e of enemies) {
+/** Enemy rams player once — small damage by type, then the enemy is destroyed. */
+function handleEnemyRams() {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
     const dx = player.x - e.x;
     const dy = player.y - e.y;
     const dist = Math.hypot(dx, dy) || 1;
-    if (dist > player.r + e.r + 10) continue;
-    rawDamage += e.damage;
-    hits++;
-  }
-  if (!hits) return;
+    if (dist >= player.r + e.r - 1) continue;
 
-  const strengthRate = 0.48;
-  const hullRate = 1.08;
-  let damage = rawDamage * strengthRate * dt;
-  damage = Math.min(damage, (24 + 14 * Math.min(hits, 5)) * dt);
+    const nx = dx / dist;
+    const ny = dy / dist;
 
-  if (player.strength > 0) {
-    const absorbed = Math.min(player.strength, damage);
-    player.strength -= absorbed;
-    damage -= absorbed;
+    if (player.inv <= 0) {
+      let dmg = Math.round((RAM_DAMAGE[e.kind] || 10) * (currentMode.ramMult || 1));
+      if (player.strength > 0) {
+        const absorbed = Math.min(player.strength, dmg);
+        player.strength -= absorbed;
+        dmg -= absorbed;
+      }
+      if (dmg > 0) player.hp -= dmg;
+
+      player.x = Math.max(
+        player.r,
+        Math.min(W - player.r, player.x + nx * 16),
+      );
+      player.y = Math.max(
+        player.r,
+        Math.min(H - player.r, player.y + ny * 16),
+      );
+      player.inv = 0.28;
+      burst(player.x, player.y, 6, player.strength > 0 ? "#9b7bff" : "#ff5478");
+      if (isBoss(e.kind)) vibrateHit();
+    }
+
+    burst(
+      e.x,
+      e.y,
+      e.kind === "boss" ? 18 : 12,
+      e.kind === "boss" || e.kind === "tank" ? "#ffbd70" : "#ff5577",
+    );
+    enemies.splice(i, 1);
   }
-  if (damage > 0) player.hp -= damage * (hullRate / strengthRate);
-  if (hits > 0) burst(player.x, player.y, 3, player.strength > 0 ? "#9b7bff" : "#ff5478");
 }
 
 function isBoss(kind) {
@@ -441,9 +469,9 @@ function collectUpgrade(target) {
   document.getElementById("upgradeBannerText").textContent =
     "Shoot a glowing target — 6 hits to unlock the boost!";
   wave++;
-  enemiesToSpawn = 5 + wave * 3;
+  enemiesToSpawn = waveEnemyCount(currentMode, wave);
   spawned = 0;
-  spawnTimer = 1.8;
+  spawnTimer = currentMode.spawnInterval;
   bossSpawned = false;
   bullets = [];
 }
@@ -555,12 +583,24 @@ function updateHud() {
 function updatePlaying(dt) {
   spawnTimer -= dt;
   if (spawned < enemiesToSpawn && spawnTimer <= 0) {
-    spawnEnemy();
+    if (currentMode.alwaysBossEachWave && spawned === 0) {
+      spawnEnemy("boss");
+    } else {
+      spawnEnemy();
+    }
     spawned++;
-    spawnTimer = Math.max(0.65, 1.45 - wave * 0.035);
+    spawnTimer = Math.max(
+      currentMode.minSpawnInterval,
+      currentMode.spawnInterval - wave * currentMode.waveSpawnFactor,
+    );
   }
 
-  if (wave >= 2 && !bossSpawned && spawned >= Math.floor(enemiesToSpawn * 0.6)) {
+  if (
+    !currentMode.alwaysBossEachWave &&
+    wave >= currentMode.midBossFromWave &&
+    !bossSpawned &&
+    spawned >= Math.floor(enemiesToSpawn * currentMode.midBossAtProgress)
+  ) {
     spawnEnemy("boss");
     bossSpawned = true;
   }
@@ -569,23 +609,11 @@ function updatePlaying(dt) {
     const dx = player.x - e.x;
     const dy = player.y - e.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const minDist = player.r + e.r + 6;
-    if (dist > minDist + 8) {
-      e.x += (dx / dist) * e.speed * dt;
-      e.y += (dy / dist) * e.speed * dt;
-    } else if (dist > minDist) {
-      e.x += (dx / dist) * e.speed * 0.45 * dt;
-      e.y += (dy / dist) * e.speed * 0.45 * dt;
-    } else {
-      const tx = -dy / dist;
-      const ty = dx / dist;
-      e.x += tx * e.speed * 0.55 * dt;
-      e.y += ty * e.speed * 0.55 * dt;
-    }
+    e.x += (dx / dist) * e.speed * dt;
+    e.y += (dy / dist) * e.speed * dt;
   }
 
-  separateEnemiesFromPlayer();
-  applyContactDamage(dt);
+  handleEnemyRams();
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -826,6 +854,7 @@ function gameOver() {
   document.getElementById("goWave").textContent = String(wave);
   document.getElementById("goScore").textContent = String(score);
   document.getElementById("goXp").textContent = String(xp);
+  document.getElementById("goModeLine").textContent = `Mode: ${currentMode.name}`;
   document.getElementById("goMessage").textContent =
     `Destroyed on wave ${wave}. Final score: ${score}.`;
   showScreen("gameover");
@@ -833,7 +862,16 @@ function gameOver() {
 
 document.getElementById("btnPlay").onclick = () => {
   resumeAudio();
+  openModeSelect();
+};
+
+document.getElementById("btnStartMode").onclick = () => {
+  resumeAudio();
   startGame();
+};
+
+document.getElementById("btnModesBack").onclick = () => {
+  showScreen("home");
 };
 
 document.getElementById("btnPlayAgain").onclick = () => {
@@ -845,7 +883,10 @@ document.getElementById("btnHomeSettings").onclick = () => openSettings("home");
 document.getElementById("btnPauseSettings").onclick = () => openSettings("pause");
 
 document.getElementById("btnSettingsBack").onclick = () => {
-  showScreen(settings.settingsReturn === "pause" ? "pause" : "home");
+  const back = settings.settingsReturn;
+  if (back === "pause") showScreen("pause");
+  else if (back === "modes") showScreen("modes");
+  else showScreen("home");
 };
 
 document.getElementById("toggleMusic").onchange = (e) => {
@@ -873,6 +914,7 @@ document.getElementById("btnGoMenu").onclick = goHome;
 
 initAudio();
 showHud(false);
+renderModeCards();
 showScreen("home");
 last = performance.now();
 animId = requestAnimationFrame(loop);

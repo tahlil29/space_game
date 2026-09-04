@@ -14,6 +14,7 @@
   <div id="hud" class="screen-hidden">
     <div class="hud-top">
       <div class="hud-panels">
+        <div class="panel mode-panel"><span id="modeLabel">CLASSIC</span></div>
         <div class="panel">WAVE <b id="wave">1</b> <span id="enemyCount" class="muted"></span></div>
         <div class="panel">SCORE <b id="score">0</b></div>
         <div class="panel">XP <b id="xp">0</b></div>
@@ -37,12 +38,27 @@
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V2.0</div>
+      <div class="badge">ARCADE SHOOTER · V2.1</div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
       <p class="subtitle">Fight enemy waves, upgrade your ship, and survive the void.</p>
       <div class="btn-stack">
         <button id="btnPlay" class="btn btn-primary" type="button">PLAY</button>
         <button id="btnHomeSettings" class="btn btn-secondary" type="button">SETTINGS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode select -->
+  <div id="screen-modes" class="screen">
+    <div class="screen-bg"></div>
+    <div class="menu-card modes-card">
+      <div class="badge">SELECT MISSION</div>
+      <h2 class="title-sm">CHOOSE MODE</h2>
+      <p class="subtitle">Each mode changes spawn rules and difficulty.</p>
+      <div class="mode-grid" id="modeGrid"></div>
+      <div class="btn-stack mode-actions">
+        <button id="btnStartMode" class="btn btn-primary" type="button">START MISSION</button>
+        <button id="btnModesBack" class="btn btn-ghost" type="button">BACK</button>
       </div>
     </div>
   </div>
@@ -116,6 +132,7 @@
           <span class="stat-value" id="goXp">0</span>
         </div>
       </div>
+      <p class="subtitle" id="goModeLine"></p>
       <p class="subtitle" id="goMessage">Your ship was destroyed.</p>
       <div class="btn-stack">
         <button id="btnPlayAgain" class="btn btn-primary" type="button">PLAY AGAIN</button>

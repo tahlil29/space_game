@@ -3,6 +3,7 @@ const STORAGE_KEY = "space-survival-settings";
 export const settings = {
   music: true,
   vibration: true,
+  selectedMode: "classic",
   settingsReturn: "home",
 
   load() {
@@ -12,6 +13,7 @@ export const settings = {
       const saved = JSON.parse(raw);
       if (typeof saved.music === "boolean") this.music = saved.music;
       if (typeof saved.vibration === "boolean") this.vibration = saved.vibration;
+      if (typeof saved.selectedMode === "string") this.selectedMode = saved.selectedMode;
     } catch {
       /* ignore corrupt storage */
     }
@@ -20,7 +22,11 @@ export const settings = {
   save() {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ music: this.music, vibration: this.vibration }),
+      JSON.stringify({
+        music: this.music,
+        vibration: this.vibration,
+        selectedMode: this.selectedMode,
+      }),
     );
   },
 
