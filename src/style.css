@@ -392,8 +392,42 @@ body.menu-open canvas {
   padding: 0 2px;
 }
 
-.auth-tabs {
-  display: none;
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: min(92vw, 420px);
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(125, 255, 184, 0.35);
+  background: rgba(8, 28, 18, 0.94);
+  color: #b6ffd4;
+  font-family: Orbitron, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.otp-banner {
+  margin: 0 0 10px;
+  padding: 14px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 255, 184, 0.4);
+  background: rgba(20, 60, 40, 0.45);
+  color: #b6ffd4;
+  font-family: Orbitron, sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+
+.auth-field input::placeholder {
+  color: rgba(200, 220, 255, 0.35);
 }
 
 .auth-form .btn-cta,

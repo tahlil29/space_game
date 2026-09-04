@@ -938,11 +938,39 @@ function openAuth(message = "") {
   showScreen("auth");
 }
 
-async function enterAppAfterAuth() {
-  await pullCloudSave();
-  loadUserData();
-  await pushCloudSave(true);
+async function enterAppAfterAuth(options = {}) {
+  const { welcome = "" } = options;
+  try {
+    await pullCloudSave();
+  } catch (err) {
+    console.warn("Cloud pull skipped:", err);
+  }
+  try {
+    loadUserData();
+  } catch (err) {
+    console.warn("Load user data failed:", err);
+  }
+  try {
+    await pushCloudSave(true);
+  } catch (err) {
+    console.warn("Cloud push skipped:", err);
+  }
   goHome();
+  refreshProfileIdentity();
+  refreshCoinUI();
+  refreshCareerStats();
+  if (welcome) showAppToast(welcome);
+}
+
+function showAppToast(text, ms = 2800) {
+  const el = document.getElementById("appToast");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove("screen-hidden");
+  clearTimeout(showAppToast._t);
+  showAppToast._t = setTimeout(() => {
+    el.classList.add("screen-hidden");
+  }, ms);
 }
 
 async function logoutToAuth() {
@@ -1972,13 +2000,18 @@ function authFailureMessage(res, fallback) {
 
 async function handleGoogle(msgEl) {
   msgEl.textContent = "";
-  const res = await auth.loginWithGoogle();
-  if (!res.ok) {
-    msgEl.textContent = authFailureMessage(res, "Google sign-in failed.");
-    return;
+  try {
+    const res = await auth.loginWithGoogle();
+    if (!res.ok) {
+      msgEl.textContent = authFailureMessage(res, "Google sign-in failed.");
+      return;
+    }
+    resumeAudio();
+    await enterAppAfterAuth({ welcome: `Welcome, ${auth.displayName()}!` });
+  } catch (err) {
+    console.warn(err);
+    msgEl.textContent = "Google sign-in failed.";
   }
-  resumeAudio();
-  await enterAppAfterAuth();
 }
 
 function openForgotView() {
@@ -2010,32 +2043,43 @@ document.getElementById("loginForm").onsubmit = async (e) => {
   const msg = document.getElementById("loginMsg");
   msg.classList.remove("auth-msg-ok");
   msg.textContent = "";
-  const res = await auth.login(
-    document.getElementById("loginEmail").value,
-    document.getElementById("loginPassword").value,
-  );
-  if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not log in.");
-    return;
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  try {
+    const res = await auth.login(email, password);
+    if (!res.ok) {
+      msg.textContent = authFailureMessage(res, "Could not log in.");
+      return;
+    }
+    resumeAudio();
+    await enterAppAfterAuth({ welcome: `Welcome back, ${auth.displayName()}!` });
+  } catch (err) {
+    console.warn(err);
+    msg.textContent = "Login failed. Check your email and password.";
   }
-  resumeAudio();
-  await enterAppAfterAuth();
 };
 
 document.getElementById("signupForm").onsubmit = async (e) => {
   e.preventDefault();
   const msg = document.getElementById("signupMsg");
+  msg.classList.remove("auth-msg-ok");
   msg.textContent = "";
-  const res = await auth.register(
-    document.getElementById("signupEmail").value,
-    document.getElementById("signupPassword").value,
-  );
-  if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not create account.");
-    return;
+  const email = document.getElementById("signupEmail").value.trim();
+  const password = document.getElementById("signupPassword").value;
+  try {
+    const res = await auth.register(email, password);
+    if (!res.ok) {
+      msg.textContent = authFailureMessage(res, "Could not create account.");
+      return;
+    }
+    resumeAudio();
+    await enterAppAfterAuth({
+      welcome: `Account created! Welcome, ${auth.displayName()}!`,
+    });
+  } catch (err) {
+    console.warn(err);
+    msg.textContent = "Could not create account. Try again.";
   }
-  resumeAudio();
-  await enterAppAfterAuth();
 };
 
 document.getElementById("btnLoginGoogle").onclick = () =>
@@ -2045,68 +2089,91 @@ document.getElementById("btnSignupGoogle").onclick = () =>
 
 document.getElementById("btnAuthGuest").onclick = async () => {
   const msg = document.getElementById("loginMsg");
-  const res = await auth.continueAsGuest();
-  if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not start guest session.");
-    return;
+  try {
+    const res = await auth.continueAsGuest();
+    if (!res.ok) {
+      msg.textContent = authFailureMessage(res, "Could not start guest session.");
+      return;
+    }
+    resumeAudio();
+    await enterAppAfterAuth({ welcome: "Playing as guest." });
+  } catch (err) {
+    console.warn(err);
+    msg.textContent = "Could not start guest session.";
   }
-  resumeAudio();
-  await enterAppAfterAuth();
 };
 
 document.getElementById("btnForgotSend").onclick = async () => {
   const msg = document.getElementById("forgotMsg");
   msg.classList.remove("auth-msg-ok");
   msg.textContent = "";
-  const email = document.getElementById("forgotEmail").value;
-  const res = await auth.sendPasswordOtp(email);
-  if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not send code.");
-    return;
-  }
-  document.getElementById("forgotStepEmail").hidden = true;
-  document.getElementById("forgotStepOtp").hidden = false;
-  document.getElementById("forgotLede").textContent =
-    "enter the code and choose a new password";
-  const otpMsg = document.getElementById("forgotOtpMsg");
-  if (res.demoOtp) {
-    otpMsg.textContent = `Your code is ${res.demoOtp} (also check email for a Firebase reset link).`;
-    otpMsg.classList.add("auth-msg-ok");
-  } else if (res.emailed) {
-    otpMsg.textContent = "Code sent to your email. Enter it below.";
-    otpMsg.classList.add("auth-msg-ok");
-  } else {
-    otpMsg.textContent = "Check your email for the code, then set a new password.";
-    otpMsg.classList.add("auth-msg-ok");
+  const email = document.getElementById("forgotEmail").value.trim();
+  try {
+    const res = await auth.sendPasswordOtp(email);
+    if (!res.ok) {
+      msg.textContent = authFailureMessage(res, "Could not send code.");
+      return;
+    }
+    document.getElementById("forgotStepEmail").hidden = true;
+    document.getElementById("forgotStepOtp").hidden = false;
+    document.getElementById("forgotLede").textContent =
+      "Enter the code and choose a new password";
+    const banner = document.getElementById("otpBanner");
+    const otpMsg = document.getElementById("forgotOtpMsg");
+    if (res.demoOtp) {
+      banner.textContent = `Your OTP code: ${res.demoOtp}`;
+      banner.classList.remove("screen-hidden");
+      document.getElementById("forgotOtp").value = res.demoOtp;
+      otpMsg.textContent = "Code ready — enter a new password below.";
+      otpMsg.classList.add("auth-msg-ok");
+    } else {
+      banner.classList.add("screen-hidden");
+      otpMsg.textContent = "Check your email for the code, then set a new password.";
+      otpMsg.classList.add("auth-msg-ok");
+    }
+  } catch (err) {
+    console.warn(err);
+    msg.textContent = "Could not send code. Try again.";
   }
 };
 
 document.getElementById("btnForgotReset").onclick = async () => {
   const msg = document.getElementById("forgotOtpMsg");
   msg.classList.remove("auth-msg-ok");
-  const email = document.getElementById("forgotEmail").value;
+  const email = document.getElementById("forgotEmail").value.trim();
   const otp = document.getElementById("forgotOtp").value;
   const password = document.getElementById("forgotPassword").value;
-  const res = await auth.resetWithOtp(email, otp, password);
-  if (!res.ok) {
-    msg.textContent = authFailureMessage(res, "Could not reset password.");
-    return;
+  try {
+    const res = await auth.resetWithOtp(email, otp, password);
+    if (!res.ok) {
+      msg.textContent = authFailureMessage(res, "Could not reset password.");
+      return;
+    }
+    if (res.openEmailLink) {
+      showAuthView("login");
+      const loginMsg = document.getElementById("loginMsg");
+      loginMsg.textContent =
+        "Code verified. Open the reset link in your email to finish, then log in with the new password.";
+      loginMsg.classList.add("auth-msg-ok");
+      document.getElementById("loginEmail").value = email;
+      return;
+    }
+    if (res.needLogin) {
+      showAuthView("login");
+      const loginMsg = document.getElementById("loginMsg");
+      loginMsg.textContent = "Password updated! Log in with your new password.";
+      loginMsg.classList.add("auth-msg-ok");
+      document.getElementById("loginEmail").value = email;
+      document.getElementById("loginPassword").value = "";
+      showAppToast("Password updated — please log in.");
+      return;
+    }
+    resumeAudio();
+    await enterAppAfterAuth({ welcome: "Password updated!" });
+  } catch (err) {
+    console.warn(err);
+    msg.textContent = "Could not reset password. Try again.";
   }
-  if (res.openEmailLink) {
-    msg.textContent =
-      "Code verified. Open the reset link in your email to finish, then log in.";
-    msg.classList.add("auth-msg-ok");
-    return;
-  }
-  if (res.needLogin) {
-    showAuthView("login");
-    const loginMsg = document.getElementById("loginMsg");
-    loginMsg.textContent = "Password updated. Log in with your new password.";
-    loginMsg.classList.add("auth-msg-ok");
-    return;
-  }
-  resumeAudio();
-  await enterAppAfterAuth();
 };
 
 document.getElementById("btnProfileLogout").onclick = logoutToAuth;

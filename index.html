@@ -16,6 +16,7 @@
 </head>
 <body>
   <canvas id="game"></canvas>
+  <div id="appToast" class="app-toast screen-hidden" role="status" aria-live="polite"></div>
 
   <!-- In-game HUD -->
   <div id="hud" class="screen-hidden">
@@ -81,11 +82,11 @@
         <form id="loginForm" class="auth-form" autocomplete="on">
           <label class="auth-field">
             <span>Email</span>
-            <input id="loginEmail" name="email" type="email" maxlength="120" required placeholder="pilot@email.com" autocomplete="email" />
+            <input id="loginEmail" name="email" type="email" maxlength="120" required placeholder="you@email.com" autocomplete="username" />
           </label>
           <label class="auth-field">
             <span>Password</span>
-            <input id="loginPassword" name="password" type="password" maxlength="64" required placeholder="••••••••" autocomplete="current-password" />
+            <input id="loginPassword" name="password" type="password" maxlength="64" required placeholder="Your password" autocomplete="current-password" />
           </label>
           <button id="btnForgotOpen" class="auth-link auth-link-left" type="button">Forgot password?</button>
           <p class="auth-msg" id="loginMsg"></p>
@@ -112,11 +113,11 @@
         <form id="signupForm" class="auth-form" autocomplete="on">
           <label class="auth-field">
             <span>Email</span>
-            <input id="signupEmail" name="email" type="email" maxlength="120" required placeholder="pilot@email.com" autocomplete="email" />
+            <input id="signupEmail" name="email" type="email" maxlength="120" required placeholder="you@email.com" autocomplete="username" />
           </label>
           <label class="auth-field">
             <span>Password</span>
-            <input id="signupPassword" name="password" type="password" maxlength="64" required placeholder="min 6 characters" autocomplete="new-password" />
+            <input id="signupPassword" name="password" type="password" maxlength="64" required placeholder="At least 6 characters" autocomplete="new-password" />
           </label>
           <p class="auth-msg" id="signupMsg"></p>
           <button class="btn btn-primary btn-cta" type="submit">
@@ -141,19 +142,20 @@
         <div id="forgotStepEmail" class="auth-form">
           <label class="auth-field">
             <span>Email</span>
-            <input id="forgotEmail" type="email" maxlength="120" placeholder="pilot@email.com" autocomplete="email" />
+            <input id="forgotEmail" type="email" maxlength="120" placeholder="you@email.com" autocomplete="username" />
           </label>
           <p class="auth-msg" id="forgotMsg"></p>
           <button id="btnForgotSend" class="btn btn-primary" type="button">Send code</button>
         </div>
         <div id="forgotStepOtp" class="auth-form" hidden>
+          <div id="otpBanner" class="otp-banner screen-hidden" aria-live="polite"></div>
           <label class="auth-field">
             <span>Email code (OTP)</span>
             <input id="forgotOtp" type="text" inputmode="numeric" maxlength="64" placeholder="6-digit code" autocomplete="one-time-code" />
           </label>
           <label class="auth-field">
             <span>New password</span>
-            <input id="forgotPassword" type="password" maxlength="64" placeholder="min 6 characters" autocomplete="new-password" />
+            <input id="forgotPassword" type="password" maxlength="64" placeholder="At least 6 characters" autocomplete="new-password" />
           </label>
           <p class="auth-msg" id="forgotOtpMsg"></p>
           <button id="btnForgotReset" class="btn btn-primary" type="button">Set new password</button>
