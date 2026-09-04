@@ -10,7 +10,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #02030a;
+  background: var(--theme-bg, #02030a);
   color: #eef7ff;
   font-family: "Exo 2", sans-serif;
 }
@@ -44,16 +44,28 @@ body.menu-open canvas {
 .screen-bg {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 35%, #1a356faa, #010209f0);
+  background: radial-gradient(
+    circle at 50% 35%,
+    var(--theme-menu-glow, rgba(26, 53, 111, 0.67)),
+    #010209f0
+  );
   pointer-events: none;
 }
 
 .screen-bg.dim {
-  background: radial-gradient(circle at 50% 40%, #0f1f4588, #010209ee);
+  background: radial-gradient(
+    circle at 50% 40%,
+    var(--theme-menu-glow, rgba(15, 31, 69, 0.55)),
+    #010209ee
+  );
 }
 
 .screen-bg.danger {
-  background: radial-gradient(circle at 50% 40%, #4a1028aa, #010209ee);
+  background: radial-gradient(
+    circle at 50% 40%,
+    var(--theme-danger-glow, rgba(74, 16, 40, 0.67)),
+    #010209ee
+  );
 }
 
 .screen-hidden {
@@ -66,7 +78,7 @@ body.menu-open canvas {
   width: min(520px, 94vw);
   text-align: center;
   padding: 36px 32px;
-  border: 1px solid rgba(126, 185, 255, 0.35);
+  border: 1px solid color-mix(in srgb, var(--theme-accent, #7ec0ff) 55%, transparent);
   background: linear-gradient(165deg, rgba(13, 24, 53, 0.96), rgba(6, 9, 20, 0.98));
   border-radius: 24px;
   box-shadow: 0 30px 120px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -147,7 +159,7 @@ body.menu-open canvas {
 }
 
 .mode-panel {
-  color: #7bc8ff;
+  color: var(--theme-accent, #7bc8ff);
 }
 
 .wave-card {
@@ -197,8 +209,8 @@ body.menu-open canvas {
 }
 
 .title-accent {
-  color: #7bc8ff;
-  text-shadow: 0 0 40px rgba(123, 200, 255, 0.45);
+  color: var(--theme-accent, #7bc8ff);
+  text-shadow: 0 0 40px color-mix(in srgb, var(--theme-accent, #7bc8ff) 45%, transparent);
 }
 
 .title-sm {
@@ -241,9 +253,9 @@ body.menu-open canvas {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #7bc8ff, #5a9fff);
+  background: linear-gradient(135deg, var(--theme-accent, #7bc8ff), var(--theme-accent-soft, #5a9fff));
   color: #04111d;
-  box-shadow: 0 10px 30px rgba(68, 170, 255, 0.35);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--theme-accent, #44aaff) 35%, transparent);
 }
 
 .btn-secondary {
@@ -374,7 +386,7 @@ body.menu-open canvas {
   font-family: Orbitron, sans-serif;
   font-size: 22px;
   font-weight: 800;
-  color: #7bc8ff;
+  color: var(--theme-accent, #7bc8ff);
 }
 
 .upgrade-banner {

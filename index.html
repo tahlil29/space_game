@@ -15,7 +15,8 @@
     <div class="hud-top">
       <div class="hud-panels">
         <div class="panel mode-panel"><span id="modeLabel">CLASSIC</span></div>
-        <div class="panel">WAVE <b id="wave">1</b> <span id="enemyCount" class="muted"></span></div>
+        <div class="panel">LEVEL <b id="level">1</b></div>
+        <div class="panel">WAVE <b id="wave">1</b> <span id="waveOf" class="muted">/ 3</span> <span id="enemyCount" class="muted"></span></div>
         <div class="panel">SCORE <b id="score">0</b></div>
         <div class="panel">XP <b id="xp">0</b></div>
       </div>
@@ -38,7 +39,7 @@
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V2.1</div>
+      <div class="badge">ARCADE SHOOTER · V2.2</div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
       <p class="subtitle">Fight enemy waves, upgrade your ship, and survive the void.</p>
       <div class="btn-stack">
@@ -112,6 +113,34 @@
     </div>
   </div>
 
+  <!-- Level complete -->
+  <div id="screen-level" class="screen">
+    <div class="screen-bg dim"></div>
+    <div class="menu-card">
+      <div class="badge success">SECTOR CLEARED</div>
+      <h2 class="title-sm" id="levelClearTitle">LEVEL 1 COMPLETE</h2>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">LEVEL</span>
+          <span class="stat-value" id="lvlStatLevel">1</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">SCORE</span>
+          <span class="stat-value" id="lvlStatScore">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">HULL</span>
+          <span class="stat-value" id="lvlStatHull">100%</span>
+        </div>
+      </div>
+      <p class="subtitle" id="levelClearMsg">Ship systems repaired. Prepare for the next sector.</p>
+      <div class="btn-stack">
+        <button id="btnLevelContinue" class="btn btn-primary" type="button">CONTINUE</button>
+        <button id="btnLevelMenu" class="btn btn-ghost" type="button">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Game over -->
   <div id="screen-gameover" class="screen">
     <div class="screen-bg dim danger"></div>
@@ -120,16 +149,16 @@
       <h2 class="title-sm">GAME OVER</h2>
       <div class="stats-grid">
         <div class="stat-box">
+          <span class="stat-label">LEVEL</span>
+          <span class="stat-value" id="goLevel">1</span>
+        </div>
+        <div class="stat-box">
           <span class="stat-label">WAVE</span>
           <span class="stat-value" id="goWave">1</span>
         </div>
         <div class="stat-box">
           <span class="stat-label">SCORE</span>
           <span class="stat-value" id="goScore">0</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">XP</span>
-          <span class="stat-value" id="goXp">0</span>
         </div>
       </div>
       <p class="subtitle" id="goModeLine"></p>

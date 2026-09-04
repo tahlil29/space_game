@@ -1,5 +1,8 @@
 export const MODE_IDS = ["classic", "endless", "boss"];
 
+/** Waves per level (Stage 2). */
+export const WAVES_PER_LEVEL = 3;
+
 export const MODES = {
   classic: {
     id: "classic",
@@ -9,13 +12,11 @@ export const MODES = {
       "Standard wave survival. Clear enemies, shoot boost targets, and climb the waves.",
     difficulty: 2,
     accent: "#7bc8ff",
-    /** Base enemy count for wave 1; scales with wave. */
     baseEnemies: 5,
     enemiesPerWave: 3,
     spawnInterval: 1.45,
     minSpawnInterval: 0.65,
     waveSpawnFactor: 0.035,
-    /** Extra boss mid-wave from this wave onward. */
     midBossFromWave: 2,
     midBossAtProgress: 0.6,
     alwaysBossEachWave: false,
@@ -23,8 +24,9 @@ export const MODES = {
     speedMult: 1,
     bossHpMult: 1,
     ramMult: 1,
-    /** Show mode label in HUD */
     hudLabel: "CLASSIC",
+    /** Repair fraction of missing hull/strength between levels */
+    levelRepair: 0.45,
   },
   endless: {
     id: "endless",
@@ -47,6 +49,7 @@ export const MODES = {
     bossHpMult: 1.1,
     ramMult: 1.05,
     hudLabel: "ENDLESS",
+    levelRepair: 0.2,
   },
   boss: {
     id: "boss",
@@ -69,11 +72,25 @@ export const MODES = {
     bossHpMult: 1.35,
     ramMult: 1.25,
     hudLabel: "BOSS",
+    levelRepair: 0.35,
   },
 };
 
 export function getMode(id) {
   return MODES[id] || MODES.classic;
+}
+
+export function getLevel(wave) {
+  return Math.max(1, Math.ceil(wave / WAVES_PER_LEVEL));
+}
+
+/** Wave index within the current level (1..WAVES_PER_LEVEL). */
+export function waveInLevel(wave) {
+  return ((wave - 1) % WAVES_PER_LEVEL) + 1;
+}
+
+export function isLevelClearWave(wave) {
+  return wave % WAVES_PER_LEVEL === 0;
 }
 
 export function waveEnemyCount(mode, wave) {
@@ -100,7 +117,11 @@ export function pickEnemyKind(mode) {
 }
 
 export function enemyStats(kind, wave, mode) {
-  const speedMult = mode.speedMult || 1;
+  const level = getLevel(wave);
+  let speedMult = mode.speedMult || 1;
+  if (mode.id === "endless") {
+    speedMult *= 1 + (level - 1) * 0.1;
+  }
   const bossHpMult = mode.bossHpMult || 1;
   const table = {
     basic: {
