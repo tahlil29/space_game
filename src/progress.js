@@ -1,4 +1,5 @@
-const PROGRESS_KEY = "space-survival-progress";
+import { userKey } from "./storage.js";
+
 export const MAP_LEVEL_COUNT = 10;
 
 function emptyModeProgress() {
@@ -9,14 +10,25 @@ function emptyModeProgress() {
   };
 }
 
+function progressKey() {
+  return userKey("progress");
+}
+
 export const progress = {
   classic: emptyModeProgress(),
   boss: emptyModeProgress(),
   endless: { bestScore: 0, bestWave: 0 },
 
+  resetMemory() {
+    this.classic = emptyModeProgress();
+    this.boss = emptyModeProgress();
+    this.endless = { bestScore: 0, bestWave: 0 };
+  },
+
   load() {
+    this.resetMemory();
     try {
-      const raw = localStorage.getItem(PROGRESS_KEY);
+      const raw = localStorage.getItem(progressKey());
       if (!raw) return;
       const saved = JSON.parse(raw);
       for (const id of ["classic", "boss"]) {
@@ -36,7 +48,7 @@ export const progress = {
 
   save() {
     localStorage.setItem(
-      PROGRESS_KEY,
+      progressKey(),
       JSON.stringify({
         classic: this.classic,
         boss: this.boss,
@@ -54,7 +66,6 @@ export const progress = {
     return this[modeId]?.stars?.[String(level)] || 0;
   },
 
-  /** Record a cleared campaign level and unlock the next. */
   recordLevelClear(modeId, level, starCount, score) {
     if (modeId === "endless") {
       this.endless.bestScore = Math.max(this.endless.bestScore, score);
@@ -77,7 +88,6 @@ export const progress = {
   },
 };
 
-/** Star rating for a cleared level. */
 export function computeLevelStars({ hullRatio, ramHits }) {
   let stars = 1;
   if (hullRatio >= 0.5) stars = 2;

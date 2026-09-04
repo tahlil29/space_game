@@ -65,6 +65,40 @@
     </div>
   </div>
 
+  <!-- Auth -->
+  <div id="screen-auth" class="screen">
+    <div class="screen-bg"></div>
+    <div class="menu-fx" aria-hidden="true"></div>
+    <div class="menu-card auth-card arcade-panel">
+      <div class="panel-corners" aria-hidden="true"></div>
+      <h1 class="title auth-title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
+      <p class="subtitle auth-sub">Sign in to save progress, or play as guest.</p>
+
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth-tab="login">LOGIN</button>
+        <button type="button" class="auth-tab" data-auth-tab="register">CREATE ACCOUNT</button>
+      </div>
+
+      <form id="authForm" class="auth-form" autocomplete="on">
+        <label class="auth-field">
+          <span>USERNAME</span>
+          <input id="authUsername" name="username" type="text" maxlength="20" required placeholder="pilot_name" />
+        </label>
+        <label class="auth-field">
+          <span>PASSWORD</span>
+          <input id="authPassword" name="password" type="password" maxlength="64" required placeholder="••••••••" />
+        </label>
+        <p class="auth-msg" id="authMsg"></p>
+        <button id="btnAuthSubmit" class="btn btn-primary btn-cta" type="submit">
+          <span class="btn-main">LOGIN</span>
+        </button>
+      </form>
+
+      <div class="auth-divider"><span>OR</span></div>
+      <button id="btnAuthGuest" class="btn btn-secondary" type="button">CONTINUE AS GUEST</button>
+    </div>
+  </div>
+
   <!-- Home -->
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
@@ -74,8 +108,8 @@
       <div class="profile-head">
         <span class="profile-avatar" aria-hidden="true"></span>
         <div>
-          <div class="profile-title">PILOT</div>
-          <div class="profile-name">Commander</div>
+          <div class="profile-title" id="profileRole">PILOT</div>
+          <div class="profile-name" id="profileName">Commander</div>
         </div>
       </div>
       <div class="profile-grid">
@@ -96,6 +130,7 @@
           <b id="profileProgress">1/10</b>
         </div>
       </div>
+      <button id="btnProfileLogout" class="btn btn-ghost profile-logout" type="button">SWITCH ACCOUNT</button>
     </aside>
 
     <div class="menu-card home-card arcade-panel">
@@ -223,6 +258,7 @@
         </label>
       </div>
       <button id="btnSettingsBack" class="btn btn-secondary" type="button">◀ BACK</button>
+      <button id="btnSettingsLogout" class="btn btn-ghost" type="button">SWITCH ACCOUNT</button>
     </div>
   </div>
 

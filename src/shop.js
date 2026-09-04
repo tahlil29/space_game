@@ -1,4 +1,4 @@
-const SHOP_KEY = "space-survival-shop";
+import { userKey } from "./storage.js";
 
 export const COIN_REWARDS = {
   basic: 3,
@@ -204,9 +204,20 @@ export const shop = {
     prop: "prop_none",
   },
 
+  resetMemory() {
+    this.coins = 0;
+    this.owned = defaultOwned();
+    this.equipped = {
+      ship: "ship_default",
+      enemy: "enemy_default",
+      prop: "prop_none",
+    };
+  },
+
   load() {
+    this.resetMemory();
     try {
-      const raw = localStorage.getItem(SHOP_KEY);
+      const raw = localStorage.getItem(userKey("shop"));
       if (!raw) return;
       const saved = JSON.parse(raw);
       if (typeof saved.coins === "number") this.coins = Math.max(0, Math.floor(saved.coins));
@@ -227,7 +238,7 @@ export const shop = {
 
   save() {
     localStorage.setItem(
-      SHOP_KEY,
+      userKey("shop"),
       JSON.stringify({
         coins: this.coins,
         owned: this.owned,

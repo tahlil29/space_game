@@ -1,4 +1,4 @@
-const STORAGE_KEY = "space-survival-settings";
+import { userKey } from "./storage.js";
 
 export const settings = {
   music: true,
@@ -6,9 +6,16 @@ export const settings = {
   selectedMode: "classic",
   settingsReturn: "home",
 
+  resetMemory() {
+    this.music = true;
+    this.vibration = true;
+    this.selectedMode = "classic";
+  },
+
   load() {
+    this.resetMemory();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(userKey("settings"));
       if (!raw) return;
       const saved = JSON.parse(raw);
       if (typeof saved.music === "boolean") this.music = saved.music;
@@ -21,7 +28,7 @@ export const settings = {
 
   save() {
     localStorage.setItem(
-      STORAGE_KEY,
+      userKey("settings"),
       JSON.stringify({
         music: this.music,
         vibration: this.vibration,

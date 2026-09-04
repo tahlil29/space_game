@@ -1,8 +1,8 @@
 # Space Survival
 
-Browser arena shooter — modes, levels, themes, shop, and touch-friendly controls for phone, tablet, and laptop.
+Browser arena shooter with login / create account / guest play, per-user progress, shop, and touch-friendly controls.
 
-**V3.3** completes arcade gamification: combos, floating rewards, wave toasts, career stats, and loadout rarity.
+**V3.4** adds accounts: progress, coins, shop unlocks, and settings save per user (or guest) in the browser.
 
 ## Run locally
 

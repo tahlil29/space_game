@@ -32,11 +32,14 @@ import {
   computeLevelStars,
 } from "./progress.js";
 import { shop, COIN_REWARDS } from "./shop.js";
+import { auth } from "./auth.js";
+import { userKey } from "./storage.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const screens = {
+  auth: document.getElementById("screen-auth"),
   home: document.getElementById("screen-home"),
   modes: document.getElementById("screen-modes"),
   map: document.getElementById("screen-map"),
@@ -73,7 +76,8 @@ let enemiesToSpawn;
 let spawned;
 let spawnTimer;
 let betweenWaves;
-let gameState = "home";
+let gameState = "auth";
+let authTab = "login";
 let last;
 let shootCD;
 let dashCD;
@@ -188,13 +192,33 @@ function isActiveGameplay() {
   return gameState === "playing" || gameState === "upgradeSelect";
 }
 
-settings.load();
-progress.load();
-shop.load();
 settings.syncToggles();
 currentMode = getMode(settings.selectedMode || "classic");
 currentTheme = getTheme(currentMode.id);
 applyThemeToDom(currentTheme);
+
+function loadUserData() {
+  settings.load();
+  progress.load();
+  shop.load();
+  settings.syncToggles();
+  currentMode = getMode(settings.selectedMode || "classic");
+  currentTheme = getTheme(currentMode.id);
+  applyThemeToDom(currentTheme);
+  setMusicProfile(currentMode.id);
+  setMusicEnabled(settings.music);
+  rebuildStars();
+  refreshCareerStats();
+  renderModeCards();
+  setStartModeLabel();
+}
+
+function refreshProfileIdentity() {
+  const nameEl = document.getElementById("profileName");
+  const roleEl = document.getElementById("profileRole");
+  if (nameEl) nameEl.textContent = auth.displayName();
+  if (roleEl) roleEl.textContent = auth.isGuest ? "GUEST" : "PILOT";
+}
 
 function refreshCoinUI() {
   const c = String(shop.coins);
@@ -222,13 +246,19 @@ function refreshCareerStats() {
     progress.classic?.unlocked || 1,
     progress.boss?.unlocked || 1,
   );
-  const lastScore = Number(localStorage.getItem("space-survival-last-score") || 0);
+  let lastScore = 0;
+  try {
+    lastScore = Number(localStorage.getItem(userKey("last-score")) || 0);
+  } catch {
+    lastScore = 0;
+  }
   const bestEl = document.getElementById("profileBest");
   const scoreEl = document.getElementById("profileScore");
   const progEl = document.getElementById("profileProgress");
   if (bestEl) bestEl.textContent = String(best);
   if (scoreEl) scoreEl.textContent = String(lastScore);
   if (progEl) progEl.textContent = `${sectors}/${MAP_LEVEL_COUNT}`;
+  refreshProfileIdentity();
   refreshCoinUI();
 }
 
@@ -878,6 +908,35 @@ function goHome() {
   refreshCoinUI();
   refreshCareerStats();
   showScreen("home");
+}
+
+function openAuth(message = "") {
+  gameState = "auth";
+  authTab = "login";
+  showHud(false);
+  document.querySelectorAll(".auth-tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.authTab === authTab);
+  });
+  const submit = document.querySelector("#btnAuthSubmit .btn-main");
+  if (submit) submit.textContent = "LOGIN";
+  const msg = document.getElementById("authMsg");
+  if (msg) msg.textContent = message;
+  const userInput = document.getElementById("authUsername");
+  const passInput = document.getElementById("authPassword");
+  if (userInput) userInput.value = "";
+  if (passInput) passInput.value = "";
+  showScreen("auth");
+}
+
+function enterAppAfterAuth() {
+  loadUserData();
+  goHome();
+}
+
+function logoutToAuth() {
+  auth.logout();
+  loadUserData();
+  openAuth("Signed out. Login, create an account, or continue as guest.");
 }
 
 function openSettings(from) {
@@ -1617,6 +1676,7 @@ function draw() {
   ctx.globalAlpha = 1;
 
   if (
+    gameState === "auth" ||
     gameState === "home" ||
     gameState === "modes" ||
     gameState === "map" ||
@@ -1734,6 +1794,7 @@ function loop(t) {
     last = t;
     // Soft ambience on menus
     if (
+      gameState === "auth" ||
       gameState === "home" ||
       gameState === "modes" ||
       gameState === "map" ||
@@ -1770,7 +1831,7 @@ function gameOver() {
   document.getElementById("goMessage").textContent =
     `Destroyed on level ${getLevel(wave)}, wave ${wave}. Final score: ${score}.`;
   try {
-    localStorage.setItem("space-survival-last-score", String(score));
+    localStorage.setItem(userKey("last-score"), String(score));
   } catch {
     /* ignore */
   }
@@ -1867,14 +1928,66 @@ document.getElementById("btnGoMenu").onclick = goHome;
 document.getElementById("btnLevelContinue").onclick = continueAfterLevel;
 document.getElementById("btnLevelMenu").onclick = goHome;
 
+document.querySelectorAll(".auth-tab").forEach((btn) => {
+  btn.onclick = () => {
+    authTab = btn.dataset.authTab;
+    document.querySelectorAll(".auth-tab").forEach((t) => {
+      t.classList.toggle("active", t.dataset.authTab === authTab);
+    });
+    const submit = document.querySelector("#btnAuthSubmit .btn-main");
+    if (submit) submit.textContent = authTab === "register" ? "CREATE ACCOUNT" : "LOGIN";
+    document.getElementById("authMsg").textContent = "";
+  };
+});
+
+document.getElementById("authForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const username = document.getElementById("authUsername").value;
+  const password = document.getElementById("authPassword").value;
+  const msg = document.getElementById("authMsg");
+  const reasons = {
+    username: "Username must be at least 3 letters/numbers.",
+    password: "Password must be at least 4 characters.",
+    exists: "That username is already taken.",
+    missing: "Account not found.",
+  };
+  try {
+    const res =
+      authTab === "register"
+        ? await auth.register(username, password)
+        : await auth.login(username, password);
+    if (!res.ok) {
+      msg.textContent = reasons[res.reason] || "Could not continue.";
+      return;
+    }
+    resumeAudio();
+    enterAppAfterAuth();
+  } catch {
+    msg.textContent = "Auth failed on this device.";
+  }
+};
+
+document.getElementById("btnAuthGuest").onclick = () => {
+  auth.continueAsGuest();
+  resumeAudio();
+  enterAppAfterAuth();
+};
+
+document.getElementById("btnProfileLogout").onclick = logoutToAuth;
+document.getElementById("btnSettingsLogout").onclick = logoutToAuth;
+
 initAudio();
 showHud(false);
 applyThemeToDom(currentTheme);
-refreshCoinUI();
-refreshCareerStats();
-renderModeCards();
-setStartModeLabel();
-showScreen("home");
+
+const hasSession = auth.init();
+if (hasSession) {
+  loadUserData();
+  goHome();
+} else {
+  openAuth();
+}
+
 last = performance.now();
 animId = requestAnimationFrame(loop);
 
