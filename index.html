@@ -39,9 +39,12 @@
   <div id="screen-home" class="screen active">
     <div class="screen-bg"></div>
     <div class="menu-card home-card">
-      <div class="badge">ARCADE SHOOTER · V2.3</div>
+      <div class="badge">ARCADE SHOOTER · V3.0</div>
       <h1 class="title">SPACE<br><span class="title-accent">SURVIVAL</span></h1>
-      <p class="subtitle">Fight enemy waves, upgrade your ship, and survive the void.</p>
+      <p class="subtitle">
+        Three modes · levels with stars · themes · shoot boosts between waves.
+        Classic &amp; Boss use a level map; Endless never ends.
+      </p>
       <div class="btn-stack">
         <button id="btnPlay" class="btn btn-primary" type="button">PLAY</button>
         <button id="btnHomeSettings" class="btn btn-secondary" type="button">SETTINGS</button>
@@ -109,7 +112,7 @@
   <div id="screen-pause" class="screen">
     <div class="screen-bg dim"></div>
     <div class="menu-card">
-      <div class="badge">MISSION PAUSED</div>
+      <div class="badge" id="pauseModeBadge">MISSION PAUSED</div>
       <h2 class="title-sm">PAUSED</h2>
       <div class="btn-stack">
         <button id="btnResume" class="btn btn-primary" type="button">RESUME</button>
@@ -160,7 +163,7 @@
   <div id="screen-gameover" class="screen">
     <div class="screen-bg dim danger"></div>
     <div class="menu-card gameover-card">
-      <div class="badge danger">MISSION FAILED</div>
+      <div class="badge danger" id="goModeBadge">MISSION FAILED</div>
       <h2 class="title-sm">GAME OVER</h2>
       <div class="stats-grid">
         <div class="stat-box">

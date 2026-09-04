@@ -23,6 +23,8 @@ export const THEMES = {
     },
     menuGlow: "rgba(26, 53, 111, 0.67)",
     dangerGlow: "rgba(74, 16, 40, 0.67)",
+    trail: "#5eb8ff",
+    ambience: ["#7bc8ff", "#9b7bff", "#66e0ff"],
   },
   endless: {
     id: "endless",
@@ -46,6 +48,8 @@ export const THEMES = {
     },
     menuGlow: "rgba(88, 28, 135, 0.55)",
     dangerGlow: "rgba(112, 26, 74, 0.7)",
+    trail: "#e879f9",
+    ambience: ["#c77dff", "#f0abfc", "#a855f7"],
   },
   boss: {
     id: "boss",
@@ -69,6 +73,8 @@ export const THEMES = {
     },
     menuGlow: "rgba(124, 45, 18, 0.55)",
     dangerGlow: "rgba(127, 29, 29, 0.75)",
+    trail: "#fb923c",
+    ambience: ["#ff8a5c", "#fbbf24", "#ef4444"],
   },
 };
 

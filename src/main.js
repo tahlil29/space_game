@@ -3,6 +3,7 @@ import {
   initAudio,
   resumeAudio,
   setMusicEnabled,
+  setMusicProfile,
   playShoot,
   playExplosion,
 } from "./audio.js";
@@ -10,6 +11,7 @@ import {
   MODES,
   MODE_IDS,
   WAVES_PER_LEVEL,
+  RAM_DAMAGE,
   getMode,
   getLevel,
   waveInLevel,
@@ -19,6 +21,7 @@ import {
   waveEnemyCount,
   pickEnemyKind,
   enemyStats,
+  pickUpgradesForMode,
   starsHtml,
   levelStarsHtml,
 } from "./modes.js";
@@ -81,6 +84,8 @@ let pendingLevelAdvance = false;
 let selectedMapLevel = 1;
 let startLevel = 1;
 let ramsThisLevel = 0;
+let ambience = [];
+let ambienceTimer = 0;
 const UPGRADE_HITS = 6;
 
 function isActiveGameplay() {
@@ -100,6 +105,7 @@ function setActiveMode(id) {
   currentMode = getMode(id);
   currentTheme = getTheme(id);
   applyThemeToDom(currentTheme);
+  setMusicProfile(id);
 }
 
 function showScreen(name) {
@@ -278,12 +284,15 @@ function reset(fromLevel = 1) {
   bossSpawned = false;
   upgradeTargets = [];
   ramsThisLevel = 0;
+  ambience = [];
+  ambienceTimer = 0;
 }
 
 function startGame(fromLevel = 1) {
   reset(fromLevel);
   currentTheme = getTheme(currentMode.id);
   applyThemeToDom(currentTheme);
+  setMusicProfile(currentMode.id);
   pendingLevelAdvance = false;
   gameState = "playing";
   showScreen(null);
@@ -299,6 +308,8 @@ function pauseGame() {
   if (!isActiveGameplay()) return;
   gameState = "paused";
   mouse.down = false;
+  document.getElementById("pauseModeBadge").textContent =
+    `${currentMode.hudLabel} · PAUSED`;
   showScreen("pause");
 }
 
@@ -358,6 +369,9 @@ function spawnEnemy(forcedKind) {
     speed: stats.speed,
     kind,
     damage: stats.damage,
+    pattern: stats.pattern || "chase",
+    angle: Math.random() * Math.PI * 2,
+    orbitDir: Math.random() < 0.5 ? 1 : -1,
   });
 }
 
@@ -428,7 +442,7 @@ function dash() {
   burst(player.x, player.y, 16, "#ffffff");
 }
 
-const RAM_DAMAGE = { fast: 7, basic: 11, tank: 19, boss: 34 };
+const RAM_BASE = RAM_DAMAGE;
 
 /** Enemy rams player once — small damage by type, then the enemy is destroyed. */
 function handleEnemyRams() {
@@ -445,7 +459,7 @@ function handleEnemyRams() {
     if (player.inv <= 0) {
       let mult = currentMode.ramMult || 1;
       if (e.kind === "boss") mult *= currentMode.bossRamMult || 1;
-      let dmg = Math.round((RAM_DAMAGE[e.kind] || 10) * mult);
+      let dmg = Math.round((RAM_BASE[e.kind] || 10) * mult);
       if (player.strength > 0) {
         const absorbed = Math.min(player.strength, dmg);
         player.strength -= absorbed;
@@ -471,7 +485,7 @@ function handleEnemyRams() {
       e.x,
       e.y,
       e.kind === "boss" ? 18 : 12,
-      e.kind === "boss" || e.kind === "tank" ? "#ffbd70" : "#ff5577",
+      currentTheme.enemy[e.kind] || "#ff5577",
     );
     enemies.splice(i, 1);
   }
@@ -481,22 +495,54 @@ function isBoss(kind) {
   return kind === "boss" || kind === "tank";
 }
 
-const UPGRADES = [
-  { icon: "DMG", name: "OVERCHARGE", desc: "+1 damage", color: "#ff6b8a", apply: (p) => { p.damage++; } },
-  { icon: "SPD", name: "RAPID FIRE", desc: "Faster firing", color: "#66e0ff", apply: (p) => { p.fireRate = Math.max(0.07, p.fireRate * 0.82); } },
-  { icon: "FIX", name: "REPAIR", desc: "+45 hull, +20 strength", color: "#7dffb8", apply: (p) => {
-    p.hp = Math.min(p.maxHp, p.hp + 45);
-    p.strength = Math.min(p.maxStrength, p.strength + 20);
-  }},
-  { icon: "HULL", name: "REINFORCE", desc: "+25 hull, +15 strength", color: "#ffb05a", apply: (p) => {
-    p.maxHp += 25; p.hp += 25; p.maxStrength += 15; p.strength += 15;
-  }},
-  { icon: "ARM", name: "ARMOR CORE", desc: "+30 max strength", color: "#9b7bff", apply: (p) => {
-    p.maxStrength += 30; p.strength += 30;
-  }},
-  { icon: "BOOST", name: "THRUST", desc: "+15% speed", color: "#7bc8ff", apply: (p) => { p.speed *= 1.15; } },
-];
+function spawnAmbient(dt) {
+  ambienceTimer -= dt;
+  if (ambienceTimer > 0) return;
+  ambienceTimer = currentMode.id === "endless" ? 0.08 : currentMode.id === "boss" ? 0.1 : 0.14;
+  const cols = currentTheme.ambience || [currentTheme.accent];
+  const col = cols[Math.floor(Math.random() * cols.length)];
+  if (currentMode.id === "boss") {
+    ambience.push({
+      x: Math.random() * W,
+      y: -8,
+      vx: (Math.random() - 0.5) * 40,
+      vy: 60 + Math.random() * 90,
+      life: 1.2 + Math.random(),
+      r: 1 + Math.random() * 2.5,
+      col,
+    });
+  } else if (currentMode.id === "endless") {
+    ambience.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 30,
+      vy: (Math.random() - 0.5) * 30,
+      life: 0.8 + Math.random() * 0.8,
+      r: 1 + Math.random() * 2,
+      col,
+    });
+  } else {
+    ambience.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 12,
+      vy: (Math.random() - 0.5) * 12,
+      life: 1.4 + Math.random(),
+      r: 0.8 + Math.random() * 1.6,
+      col,
+    });
+  }
+}
 
+function updateAmbience(dt) {
+  spawnAmbient(dt);
+  for (const p of ambience) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+  }
+  ambience = ambience.filter((p) => p.life > 0);
+}
 function spawnUpgradeTarget(upgrade) {
   const side = Math.floor(Math.random() * 4);
   const speed = 50 + Math.random() * 40;
@@ -644,7 +690,7 @@ function startUpgradePhase() {
   gameState = "upgradeSelect";
 
   upgradeTargets = [];
-  const picks = [...UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
+  const picks = pickUpgradesForMode(currentMode, 3);
   picks.forEach((u) => spawnUpgradeTarget(u));
 
   document.getElementById("upgradeBannerText").textContent =
@@ -774,11 +820,37 @@ function updatePlaying(dt) {
     const dx = player.x - e.x;
     const dy = player.y - e.y;
     const dist = Math.hypot(dx, dy) || 1;
-    e.x += (dx / dist) * e.speed * dt;
-    e.y += (dy / dist) * e.speed * dt;
+
+    if (e.kind === "boss" && e.pattern === "orbit" && dist > 90) {
+      e.angle += e.orbitDir * 1.1 * dt;
+      const prefer = Math.min(180, Math.max(110, dist));
+      const tx = player.x + Math.cos(e.angle) * prefer;
+      const ty = player.y + Math.sin(e.angle) * prefer;
+      const ox = tx - e.x;
+      const oy = ty - e.y;
+      const ol = Math.hypot(ox, oy) || 1;
+      e.x += (ox / ol) * e.speed * 1.15 * dt;
+      e.y += (oy / ol) * e.speed * 1.15 * dt;
+      // leave purple/orange trail
+      if (Math.random() < 0.35) {
+        particles.push({
+          x: e.x,
+          y: e.y,
+          vx: (Math.random() - 0.5) * 20,
+          vy: (Math.random() - 0.5) * 20,
+          life: 0.25,
+          r: 2,
+          col: currentTheme.trail,
+        });
+      }
+    } else {
+      e.x += (dx / dist) * e.speed * dt;
+      e.y += (dy / dist) * e.speed * dt;
+    }
   }
 
   handleEnemyRams();
+  updateAmbience(dt);
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -907,7 +979,16 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
-  if (gameState === "home" || gameState === "modes") return;
+  for (const p of ambience) {
+    ctx.globalAlpha = Math.max(0, p.life * 0.55);
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (gameState === "home" || gameState === "modes" || gameState === "map") return;
 
   for (const p of powerups) {
     ctx.save();
@@ -1020,6 +1101,7 @@ function gameOver() {
   document.getElementById("goLevel").textContent = String(getLevel(wave));
   document.getElementById("goWave").textContent = String(wave);
   document.getElementById("goScore").textContent = String(score);
+  document.getElementById("goModeBadge").textContent = `${currentMode.hudLabel} · FAILED`;
   document.getElementById("goModeLine").textContent = `Mode: ${currentMode.name}`;
   document.getElementById("goMessage").textContent =
     `Destroyed on level ${getLevel(wave)}, wave ${wave}. Final score: ${score}.`;

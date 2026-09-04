@@ -2,8 +2,38 @@ import { settings } from "./settings.js";
 
 let ctx;
 let master;
-let started = false;
 let timer;
+let profile = {
+  id: "classic",
+  freqs: [110, 165, 220],
+  interval: 4200,
+  wave: "sine",
+  volume: 0.14,
+};
+
+const PROFILES = {
+  classic: {
+    id: "classic",
+    freqs: [110, 165, 220],
+    interval: 4200,
+    wave: "sine",
+    volume: 0.14,
+  },
+  endless: {
+    id: "endless",
+    freqs: [98, 147, 196, 294],
+    interval: 3200,
+    wave: "triangle",
+    volume: 0.12,
+  },
+  boss: {
+    id: "boss",
+    freqs: [82, 123, 164],
+    interval: 2800,
+    wave: "sawtooth",
+    volume: 0.11,
+  },
+};
 
 export function initAudio() {
   if (ctx) return;
@@ -11,7 +41,7 @@ export function initAudio() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = settings.music ? 0.14 : 0;
+  master.gain.value = settings.music ? profile.volume : 0;
   master.connect(ctx.destination);
 }
 
@@ -20,9 +50,20 @@ export function resumeAudio() {
   if (ctx?.state === "suspended") ctx.resume();
 }
 
+export function setMusicProfile(modeId) {
+  profile = PROFILES[modeId] || PROFILES.classic;
+  if (master && settings.music) {
+    master.gain.value = profile.volume;
+  }
+  if (settings.music) {
+    stopLoop();
+    startLoop();
+  }
+}
+
 export function setMusicEnabled(on) {
   initAudio();
-  if (master) master.gain.value = on ? 0.14 : 0;
+  if (master) master.gain.value = on ? profile.volume : 0;
   if (on) {
     resumeAudio();
     startLoop();
@@ -34,7 +75,7 @@ export function setMusicEnabled(on) {
 function startLoop() {
   if (!ctx || !settings.music || timer) return;
   playChord();
-  timer = setInterval(playChord, 4200);
+  timer = setInterval(playChord, profile.interval);
 }
 
 function stopLoop() {
@@ -47,18 +88,19 @@ function stopLoop() {
 function playChord() {
   if (!ctx || !master || !settings.music) return;
   const t = ctx.currentTime;
-  [110, 165, 220].forEach((freq, i) => {
+  profile.freqs.forEach((freq, i) => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = "sine";
+    osc.type = profile.wave;
     osc.frequency.value = freq;
+    const peak = Math.max(0.02, 0.07 - i * 0.012);
     gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.08 - i * 0.015, t + 0.4);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 3.8);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + profile.interval / 1000 - 0.2);
     osc.connect(gain);
     gain.connect(master);
     osc.start(t);
-    osc.stop(t + 4);
+    osc.stop(t + profile.interval / 1000);
   });
 }
 
@@ -70,8 +112,9 @@ export function playShoot() {
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(880, t);
+  const startF = profile.id === "boss" ? 720 : profile.id === "endless" ? 980 : 880;
+  osc.type = profile.id === "boss" ? "sawtooth" : "square";
+  osc.frequency.setValueAtTime(startF, t);
   osc.frequency.exponentialRampToValueAtTime(220, t + 0.06);
   gain.gain.setValueAtTime(0.04, t);
   gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
@@ -96,7 +139,7 @@ export function playExplosion() {
   const src = ctx.createBufferSource();
   const gain = ctx.createGain();
   src.buffer = buffer;
-  gain.gain.setValueAtTime(0.12, t);
+  gain.gain.setValueAtTime(profile.id === "boss" ? 0.16 : 0.12, t);
   gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
   src.connect(gain);
   gain.connect(master);
