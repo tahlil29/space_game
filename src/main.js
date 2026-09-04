@@ -2233,9 +2233,18 @@ document.getElementById("btnForgotSend").onclick = async () => {
       banner.textContent = `Your OTP code: ${res.demoOtp}`;
       banner.classList.remove("screen-hidden");
       document.getElementById("forgotOtp").value = res.demoOtp;
-      otpMsg.textContent = isEmailOtpConfigured()
-        ? "Email send failed — use the on-screen code for now."
-        : "Email OTP is not set up yet (add EmailJS env vars). Use this on-screen code for now.";
+      const detail = String(res.emailDetail || "").slice(0, 120);
+      if (!isEmailOtpConfigured()) {
+        otpMsg.textContent =
+          "Email OTP is not set up yet (add EmailJS env vars). Use this on-screen code for now.";
+      } else if (/insufficient|scope|412|Invalid grant|reconnect/i.test(detail)) {
+        otpMsg.textContent =
+          "Gmail blocked EmailJS — reconnect Gmail in EmailJS and allow “Send email on your behalf”.";
+      } else if (detail) {
+        otpMsg.textContent = `Email send failed (${detail}). Use the on-screen code for now.`;
+      } else {
+        otpMsg.textContent = "Email send failed — use the on-screen code for now.";
+      }
       otpMsg.classList.add("auth-msg-ok");
     } else {
       banner.classList.add("screen-hidden");

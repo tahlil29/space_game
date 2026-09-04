@@ -228,22 +228,38 @@ async function emailOtpViaEmailJs(email, otp) {
   const service = import.meta.env.VITE_EMAILJS_SERVICE_ID;
   const template = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
   const key = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-  if (!service || !template || !key) return false;
-  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      service_id: service,
-      template_id: template,
-      user_id: key,
-      template_params: {
-        to_email: email,
-        otp,
-        app_name: "Space Survival",
-      },
-    }),
-  });
-  return res.ok;
+  if (!service || !template || !key) {
+    return { ok: false, reason: "not-configured" };
+  }
+  try {
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: service,
+        template_id: template,
+        user_id: key,
+        template_params: {
+          // Support common EmailJS template variable names
+          to_email: email,
+          email,
+          user_email: email,
+          otp: String(otp),
+          app_name: "Space Survival",
+          message: `Your Space Survival code is ${otp}`,
+        },
+      }),
+    });
+    const text = (await res.text()).trim();
+    if (!res.ok) {
+      console.warn("EmailJS send failed:", res.status, text);
+      return { ok: false, reason: "send-failed", detail: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.warn("EmailJS network error:", err);
+    return { ok: false, reason: "network", detail: String(err?.message || err) };
+  }
 }
 
 function savePendingReset(email, password) {
@@ -557,10 +573,14 @@ export const auth = {
       }
 
       let emailed = false;
+      let emailDetail = "";
       try {
-        emailed = await withTimeout(emailOtpViaEmailJs(mail, otp), 4000);
+        const mailRes = await withTimeout(emailOtpViaEmailJs(mail, otp), 12000);
+        emailed = Boolean(mailRes?.ok);
+        if (!emailed) emailDetail = mailRes?.detail || mailRes?.reason || "";
       } catch {
         emailed = false;
+        emailDetail = "timeout";
       }
       // Firebase reset email is a LINK (not a 6-digit OTP). Keep as backup path.
       try {
@@ -585,6 +605,7 @@ export const auth = {
         emailed: false,
         demoOtp: otp,
         emailConfigured: isEmailOtpConfigured(),
+        emailDetail,
       };
     }
 
