@@ -765,37 +765,63 @@ export const auth = {
       }
     }
 
-    if (!record || record.hash !== expectHash) return { ok: false, reason: "otp" };
-    if (record.expires && Date.now() > Number(record.expires)) {
+    const otpValid =
+      record &&
+      record.hash === expectHash &&
+      !(record.expires && Date.now() > Number(record.expires));
+
+    // Retry path: OTP already consumed, but pending new password is saved
+    const pending = loadPendingReset();
+    const pendingMatches =
+      pending && pending.email === mail && pending.password === newPassword;
+
+    if (!otpValid && !pendingMatches) {
       return { ok: false, reason: "otp" };
     }
 
     if (isFirebaseConfigured()) {
-      const updated = await updateFirebasePasswordWithRefresh(mail, newPassword).catch(
-        () => false,
-      );
-      if (updated) {
-        clearOtpRecord();
-        clearPendingReset();
-        try {
-          const db = getFirebaseDb();
-          if (db) {
-            await Promise.race([
-              deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
-              new Promise((r) => setTimeout(r, 2000)),
-            ]);
+      // Prefer instant update when this browser has logged in before
+      if (otpValid) {
+        const updated = await updateFirebasePasswordWithRefresh(mail, newPassword).catch(
+          () => false,
+        );
+        if (updated) {
+          clearOtpRecord();
+          clearPendingReset();
+          try {
+            const db = getFirebaseDb();
+            if (db) {
+              await Promise.race([
+                deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
+                new Promise((r) => setTimeout(r, 2000)),
+              ]);
+            }
+          } catch {
+            /* ignore */
           }
-        } catch {
-          /* ignore */
+          return { ok: true, needLogin: true };
         }
-        return { ok: true, needLogin: true };
       }
 
-      // No prior login on this device — finish via Firebase reset link.
-      // Keep the new password pending so the email link can apply it.
+      // Save new password so old-password login (or email link) can activate it
       savePendingReset(mail, newPassword);
-      clearOtpRecord();
       const linkSent = await sendFirebaseResetLink(mail);
+
+      // Only clear OTP after a successful verified attempt (keep for true first-time retries
+      // if link send failed and record still valid — pendingMatches covers later retries)
+      if (otpValid) clearOtpRecord();
+      try {
+        const db = getFirebaseDb();
+        if (db && otpValid) {
+          await Promise.race([
+            deleteDoc(doc(db, "passwordOtps", emailDocKey(mail))),
+            new Promise((r) => setTimeout(r, 2000)),
+          ]);
+        }
+      } catch {
+        /* ignore */
+      }
+
       if (linkSent) {
         return {
           ok: true,
@@ -803,12 +829,11 @@ export const auth = {
           openEmailLink: true,
         };
       }
-      // Link send failed, but password is still pending — user can request another link
+      // Link email failed — still OK: activate by logging in with the OLD password once
       return {
-        ok: false,
-        reason: "firebase",
-        detail:
-          "Code verified. We could not email the final reset link — wait a minute and tap Set new password again, or check spam.",
+        ok: true,
+        needLogin: true,
+        activateViaOldPassword: true,
       };
     }
 

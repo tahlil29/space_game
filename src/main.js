@@ -2319,11 +2319,22 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
       showAuthView("login");
       const loginMsg = document.getElementById("loginMsg");
       loginMsg.textContent =
-        "Almost done: open the reset link in your email to activate the new password, then log in. Or log in once with your old password to activate it.";
+        "Almost done: open the reset link in your email, or log in once with your OLD password to activate the new one.";
       loginMsg.classList.add("auth-msg-ok");
       document.getElementById("loginEmail").value = email;
       document.getElementById("loginPassword").value = "";
-      showAppToast("Check email for the reset link — or log in with your old password once.");
+      showAppToast("Activate via email link — or old password once.");
+      return;
+    }
+    if (res.activateViaOldPassword) {
+      showAuthView("login");
+      const loginMsg = document.getElementById("loginMsg");
+      loginMsg.textContent =
+        "Code verified. Log in once with your OLD password to activate the new password, then use the new one next time.";
+      loginMsg.classList.add("auth-msg-ok");
+      document.getElementById("loginEmail").value = email;
+      document.getElementById("loginPassword").value = "";
+      showAppToast("Log in with your old password once to finish.");
       return;
     }
     if (res.needLogin) {
