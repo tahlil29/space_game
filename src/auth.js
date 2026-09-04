@@ -2,13 +2,10 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInAnonymously,
   signInWithPopup,
-  signInWithPhoneNumber,
-  linkWithPhoneNumber,
   GoogleAuthProvider,
-  RecaptchaVerifier,
-  updatePassword,
   updateProfile,
   signOut,
 } from "firebase/auth";
@@ -17,10 +14,6 @@ import { setActiveUserId, migrateLegacyToGuest, userKey } from "./storage.js";
 
 const googleProvider = new GoogleAuthProvider();
 const AUTH_KEY = "space-survival-auth";
-
-let recaptchaVerifier = null;
-let phoneConfirmation = null;
-let phoneLinkConfirmation = null;
 
 function loadAuthDb() {
   try {
@@ -59,48 +52,17 @@ async function hashPassword(password, salt) {
     .join("");
 }
 
-function normalizeUsername(name) {
-  return String(name || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "")
-    .slice(0, 20);
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
-function looksLikeEmail(value) {
-  const v = String(value || "").trim();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 }
 
-function authEmailFromIdentifier(identifier) {
-  const raw = String(identifier || "").trim();
-  if (looksLikeEmail(raw)) return raw.toLowerCase();
-  const user = normalizeUsername(raw);
-  const projectId =
-    import.meta.env.VITE_FIREBASE_PROJECT_ID || "space-game-fc099";
-  return `${user}@${projectId}.firebaseapp.com`;
-}
-
-function usernameFromIdentifier(identifier) {
-  const raw = String(identifier || "").trim();
-  if (looksLikeEmail(raw)) {
-    return normalizeUsername(raw.split("@")[0]) || "pilot";
-  }
-  return normalizeUsername(raw);
-}
-
-/** Normalize to E.164-ish: digits with leading + */
-function normalizePhone(phone) {
-  const raw = String(phone || "").trim().replace(/[\s\-()]/g, "");
-  if (!raw) return "";
-  if (raw.startsWith("+")) {
-    const digits = raw.slice(1).replace(/\D/g, "");
-    return digits.length >= 10 ? `+${digits}` : "";
-  }
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length > 10) return `+${digits}`;
-  return "";
+function displayNameFromEmail(email) {
+  const local = normalizeEmail(email).split("@")[0] || "pilot";
+  return local.replace(/[^a-z0-9_\-]/gi, "").slice(0, 20) || "pilot";
 }
 
 function mapFirebaseError(code, message = "") {
@@ -112,7 +74,8 @@ function mapFirebaseError(code, message = "") {
     return "firebase-not-started";
   }
   if (code === "auth/email-already-in-use") return "exists";
-  if (code === "auth/invalid-email") return "username";
+  if (code === "auth/invalid-email") return "email";
+  if (code === "auth/missing-email") return "email";
   if (code === "auth/weak-password" || code === "auth/invalid-password") {
     return "password";
   }
@@ -132,12 +95,6 @@ function mapFirebaseError(code, message = "") {
   if (code === "auth/account-exists-with-different-credential") {
     return "account-exists";
   }
-  if (code === "auth/invalid-phone-number") return "phone";
-  if (code === "auth/missing-phone-number") return "phone";
-  if (code === "auth/invalid-verification-code" || code === "auth/code-expired") {
-    return "otp";
-  }
-  if (code === "auth/credential-already-in-use") return "phone-in-use";
   if (msg.includes("INVALID_LOGIN_CREDENTIALS")) return "credentials";
   return "firebase";
 }
@@ -145,14 +102,8 @@ function mapFirebaseError(code, message = "") {
 function displayNameFromUser(user, fallback = "Pilot") {
   if (user?.displayName) return user.displayName;
   if (user?.isAnonymous) return "Guest";
-  const email = user?.email || "";
-  const fromEmail = email.split("@")[0];
-  return fromEmail || fallback;
-}
-
-function clearPhoneFlow() {
-  phoneConfirmation = null;
-  phoneLinkConfirmation = null;
+  if (user?.email) return displayNameFromEmail(user.email);
+  return fallback;
 }
 
 export const auth = {
@@ -186,25 +137,6 @@ export const auth = {
     db.session = session;
     saveAuthDb(db);
     this.applySession(session);
-  },
-
-  ensureRecaptcha(containerId = "recaptcha-container") {
-    if (!isFirebaseConfigured()) return null;
-    const fa = getFirebaseAuth();
-    if (recaptchaVerifier) return recaptchaVerifier;
-    recaptchaVerifier = new RecaptchaVerifier(fa, containerId, {
-      size: "invisible",
-    });
-    return recaptchaVerifier;
-  },
-
-  resetRecaptcha() {
-    try {
-      recaptchaVerifier?.clear();
-    } catch {
-      /* ignore */
-    }
-    recaptchaVerifier = null;
   },
 
   async init() {
@@ -241,17 +173,16 @@ export const auth = {
     return false;
   },
 
-  async register(username, password, phone = "") {
-    const display = usernameFromIdentifier(username);
-    if (display.length < 3) return { ok: false, reason: "username" };
+  async register(email, password) {
+    const mail = normalizeEmail(email);
+    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
     if (!password || password.length < 6) return { ok: false, reason: "password" };
-    const phoneE164 = normalizePhone(phone);
+    const display = displayNameFromEmail(mail);
 
     if (isFirebaseConfigured()) {
       try {
         const fa = getFirebaseAuth();
-        const email = authEmailFromIdentifier(username);
-        const cred = await createUserWithEmailAndPassword(fa, email, password);
+        const cred = await createUserWithEmailAndPassword(fa, mail, password);
         await updateProfile(cred.user, { displayName: display });
         this.applySession({
           userId: cred.user.uid,
@@ -259,21 +190,9 @@ export const auth = {
           isGuest: false,
           backend: "firebase",
         });
-
-        if (phoneE164) {
-          const verifier = this.ensureRecaptcha();
-          phoneLinkConfirmation = await linkWithPhoneNumber(
-            cred.user,
-            phoneE164,
-            verifier,
-          );
-          return { ok: true, needsPhoneOtp: true, phone: phoneE164 };
-        }
-
         return { ok: true };
       } catch (err) {
         console.warn("Firebase register failed:", err?.code, err?.message);
-        this.resetRecaptcha();
         return {
           ok: false,
           reason: mapFirebaseError(err?.code, err?.message),
@@ -283,22 +202,14 @@ export const auth = {
     }
 
     const db = loadAuthDb();
-    const key = display;
-    if (db.accounts[key]) return { ok: false, reason: "exists" };
-    if (phoneE164 && Object.values(db.accounts).some((a) => a.phone === phoneE164)) {
-      return { ok: false, reason: "phone-in-use" };
-    }
+    if (db.accounts[mail]) return { ok: false, reason: "exists" };
     const salt = randomSalt();
     const hash = await hashPassword(password, salt);
-    db.accounts[key] = {
-      salt,
-      hash,
-      phone: phoneE164 || null,
-      createdAt: Date.now(),
-    };
+    db.accounts[mail] = { salt, hash, createdAt: Date.now() };
     const session = {
-      userId: `user_${key}`,
-      username: key,
+      userId: `user_${display}`,
+      username: display,
+      email: mail,
       isGuest: false,
       backend: "local",
     };
@@ -308,41 +219,18 @@ export const auth = {
     return { ok: true };
   },
 
-  async confirmPhoneLink(code) {
-    if (!phoneLinkConfirmation) return { ok: false, reason: "otp" };
-    try {
-      await phoneLinkConfirmation.confirm(String(code || "").trim());
-      clearPhoneFlow();
-      return { ok: true };
-    } catch (err) {
-      console.warn("Phone link confirm failed:", err?.code, err?.message);
-      return {
-        ok: false,
-        reason: mapFirebaseError(err?.code, err?.message),
-        detail: err?.code || err?.message || "",
-      };
-    }
-  },
-
-  skipPhoneLink() {
-    clearPhoneFlow();
-    this.resetRecaptcha();
-    return { ok: true };
-  },
-
-  async login(username, password) {
-    const display = usernameFromIdentifier(username);
-    if (!display || display.length < 2) return { ok: false, reason: "username" };
+  async login(email, password) {
+    const mail = normalizeEmail(email);
+    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
     if (!password) return { ok: false, reason: "credentials" };
 
     if (isFirebaseConfigured()) {
       try {
         const fa = getFirebaseAuth();
-        const email = authEmailFromIdentifier(username);
-        const cred = await signInWithEmailAndPassword(fa, email, password);
+        const cred = await signInWithEmailAndPassword(fa, mail, password);
         this.applySession({
           userId: cred.user.uid,
-          username: cred.user.displayName || display,
+          username: displayNameFromUser(cred.user, displayNameFromEmail(mail)),
           isGuest: false,
           backend: "firebase",
         });
@@ -358,13 +246,15 @@ export const auth = {
     }
 
     const db = loadAuthDb();
-    const account = db.accounts[display];
+    const account = db.accounts[mail];
     if (!account) return { ok: false, reason: "missing" };
     const hash = await hashPassword(password, account.salt);
     if (hash !== account.hash) return { ok: false, reason: "credentials" };
+    const display = displayNameFromEmail(mail);
     const session = {
       userId: `user_${display}`,
       username: display,
+      email: mail,
       isGuest: false,
       backend: "local",
     };
@@ -372,6 +262,39 @@ export const auth = {
     saveAuthDb(db);
     this.applySession(session);
     return { ok: true };
+  },
+
+  async sendPasswordReset(email) {
+    const mail = normalizeEmail(email);
+    if (!isValidEmail(mail)) return { ok: false, reason: "email" };
+
+    if (isFirebaseConfigured()) {
+      try {
+        await sendPasswordResetEmail(getFirebaseAuth(), mail);
+        return { ok: true };
+      } catch (err) {
+        console.warn("Password reset email failed:", err?.code, err?.message);
+        // Avoid account enumeration: treat missing user like success for UX,
+        // but surface real config errors.
+        const reason = mapFirebaseError(err?.code, err?.message);
+        if (reason === "missing" || reason === "credentials") {
+          return { ok: true };
+        }
+        return {
+          ok: false,
+          reason,
+          detail: err?.code || err?.message || "",
+        };
+      }
+    }
+
+    const db = loadAuthDb();
+    if (!db.accounts[mail]) return { ok: false, reason: "missing" };
+    return {
+      ok: false,
+      reason: "local-reset",
+      detail: "Local mode cannot email a reset link. Create a new local account or enable Firebase.",
+    };
   },
 
   async loginWithGoogle() {
@@ -396,102 +319,6 @@ export const auth = {
         detail: err?.code || err?.message || "",
       };
     }
-  },
-
-  async sendPasswordResetOtp(phone) {
-    const phoneE164 = normalizePhone(phone);
-    if (!phoneE164) return { ok: false, reason: "phone" };
-
-    if (isFirebaseConfigured()) {
-      try {
-        this.resetRecaptcha();
-        const fa = getFirebaseAuth();
-        const verifier = this.ensureRecaptcha();
-        phoneConfirmation = await signInWithPhoneNumber(fa, phoneE164, verifier);
-        return { ok: true, phone: phoneE164 };
-      } catch (err) {
-        console.warn("Password reset OTP failed:", err?.code, err?.message);
-        this.resetRecaptcha();
-        return {
-          ok: false,
-          reason: mapFirebaseError(err?.code, err?.message),
-          detail: err?.code || err?.message || "",
-        };
-      }
-    }
-
-    const db = loadAuthDb();
-    const match = Object.entries(db.accounts).find(
-      ([, a]) => a.phone && a.phone === phoneE164,
-    );
-    if (!match) return { ok: false, reason: "missing" };
-    phoneConfirmation = { localUser: match[0], phone: phoneE164 };
-    return { ok: true, phone: phoneE164, localDemoOtp: "123456" };
-  },
-
-  async confirmPasswordReset(code, newPassword) {
-    if (!newPassword || newPassword.length < 6) {
-      return { ok: false, reason: "password" };
-    }
-    if (!phoneConfirmation) return { ok: false, reason: "otp" };
-
-    if (isFirebaseConfigured() && phoneConfirmation.confirm) {
-      try {
-        const result = await phoneConfirmation.confirm(String(code || "").trim());
-        const user = result.user;
-        const providers = user.providerData.map((p) => p.providerId);
-        if (!providers.includes("password") && !user.email) {
-          clearPhoneFlow();
-          await signOut(getFirebaseAuth());
-          this.clearSessionLocal();
-          return { ok: false, reason: "phone-not-linked" };
-        }
-        await updatePassword(user, newPassword);
-        this.applySession({
-          userId: user.uid,
-          username: displayNameFromUser(user),
-          isGuest: false,
-          backend: "firebase",
-        });
-        clearPhoneFlow();
-        this.resetRecaptcha();
-        return { ok: true };
-      } catch (err) {
-        console.warn("Password reset confirm failed:", err?.code, err?.message);
-        return {
-          ok: false,
-          reason: mapFirebaseError(err?.code, err?.message),
-          detail: err?.code || err?.message || "",
-        };
-      }
-    }
-
-    // Local fallback: demo OTP 123456
-    if (phoneConfirmation.localUser) {
-      if (String(code || "").trim() !== "123456") {
-        return { ok: false, reason: "otp" };
-      }
-      const db = loadAuthDb();
-      const key = phoneConfirmation.localUser;
-      const account = db.accounts[key];
-      if (!account) return { ok: false, reason: "missing" };
-      const salt = randomSalt();
-      account.salt = salt;
-      account.hash = await hashPassword(newPassword, salt);
-      const session = {
-        userId: `user_${key}`,
-        username: key,
-        isGuest: false,
-        backend: "local",
-      };
-      db.session = session;
-      saveAuthDb(db);
-      this.applySession(session);
-      clearPhoneFlow();
-      return { ok: true };
-    }
-
-    return { ok: false, reason: "otp" };
   },
 
   async continueAsGuest() {
@@ -527,8 +354,6 @@ export const auth = {
   },
 
   async logout() {
-    clearPhoneFlow();
-    this.resetRecaptcha();
     if (isFirebaseConfigured()) {
       try {
         await signOut(getFirebaseAuth());
@@ -549,4 +374,4 @@ export const auth = {
   },
 };
 
-export { userKey, normalizePhone };
+export { userKey };

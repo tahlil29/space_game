@@ -82,16 +82,12 @@
 
       <form id="authForm" class="auth-form" autocomplete="on">
         <label class="auth-field">
-          <span>USERNAME</span>
-          <input id="authUsername" name="username" type="text" maxlength="64" required placeholder="pilot_name" />
+          <span>EMAIL</span>
+          <input id="authEmail" name="email" type="email" maxlength="120" required placeholder="pilot@email.com" autocomplete="email" />
         </label>
         <label class="auth-field">
           <span>PASSWORD</span>
-          <input id="authPassword" name="password" type="password" maxlength="64" required placeholder="••••••••" />
-        </label>
-        <label class="auth-field" id="authPhoneField" hidden>
-          <span>MOBILE (for password reset)</span>
-          <input id="authPhone" name="phone" type="tel" maxlength="20" placeholder="+1 555 555 0100" autocomplete="tel" />
+          <input id="authPassword" name="password" type="password" maxlength="64" required placeholder="••••••••" autocomplete="current-password" />
         </label>
         <p class="auth-msg" id="authMsg"></p>
         <button id="btnAuthSubmit" class="btn btn-primary btn-cta" type="submit">
@@ -102,37 +98,15 @@
       <button id="btnForgotOpen" class="auth-link" type="button">FORGOT PASSWORD?</button>
 
       <div id="authForgotPanel" class="auth-forgot" hidden>
-        <p class="auth-forgot-title">Reset with mobile OTP</p>
+        <p class="auth-forgot-title">Reset via email</p>
         <label class="auth-field">
-          <span>MOBILE NUMBER</span>
-          <input id="forgotPhone" type="tel" maxlength="20" placeholder="+1 555 555 0100" />
-        </label>
-        <label class="auth-field" id="forgotOtpField" hidden>
-          <span>SMS CODE</span>
-          <input id="forgotOtp" type="text" inputmode="numeric" maxlength="8" placeholder="123456" />
-        </label>
-        <label class="auth-field" id="forgotPassField" hidden>
-          <span>NEW PASSWORD</span>
-          <input id="forgotPassword" type="password" maxlength="64" placeholder="••••••••" />
+          <span>EMAIL</span>
+          <input id="forgotEmail" type="email" maxlength="120" placeholder="pilot@email.com" autocomplete="email" />
         </label>
         <p class="auth-msg" id="forgotMsg"></p>
-        <button id="btnForgotSend" class="btn btn-secondary" type="button">SEND CODE</button>
-        <button id="btnForgotReset" class="btn btn-primary" type="button" hidden>RESET PASSWORD</button>
+        <button id="btnForgotSend" class="btn btn-secondary" type="button">SEND RESET LINK</button>
         <button id="btnForgotBack" class="auth-link" type="button">BACK TO LOGIN</button>
       </div>
-
-      <div id="authPhoneOtpPanel" class="auth-forgot" hidden>
-        <p class="auth-forgot-title">Verify mobile to enable reset</p>
-        <label class="auth-field">
-          <span>SMS CODE</span>
-          <input id="linkPhoneOtp" type="text" inputmode="numeric" maxlength="8" placeholder="123456" />
-        </label>
-        <p class="auth-msg" id="linkPhoneMsg"></p>
-        <button id="btnLinkPhoneConfirm" class="btn btn-primary" type="button">VERIFY MOBILE</button>
-        <button id="btnLinkPhoneSkip" class="auth-link" type="button">SKIP FOR NOW</button>
-      </div>
-
-      <div id="recaptcha-container"></div>
 
       <div class="auth-divider"><span>OR</span></div>
       <button id="btnAuthGoogle" class="btn btn-google" type="button">

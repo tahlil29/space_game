@@ -18,17 +18,15 @@ Open the URL Vite prints (port `43127`).
 
 Enable these in Firebase Console (project `space-game-fc099`):
 
-1. **Authentication** → click **Get started**, then enable **Email/Password**, **Phone**, **Google**, and **Anonymous**
-2. For **Phone**: add a test number while developing, or complete reCAPTCHA / billing setup for real SMS
-3. **Firestore** — create DB, deploy rules from `firestore.rules`
-4. Web app config in `.env.local` / Render env vars
-5. **Authorized domains** — `localhost` plus your Render host
+1. **Authentication** → enable **Email/Password**, **Google**, and **Anonymous** (no Phone)
+2. **Firestore** — create DB, deploy rules from `firestore.rules`
+3. Web app config in `.env.local` / Render env vars
+4. **Authorized domains** — `localhost` plus your Render host
 
 ### Accounts
 
-- **Login / Create account** — username (or email) + password
-- On create, optional **mobile** is linked so you can reset later
-- **Forgot password?** — SMS OTP to the linked mobile, then set a new password
+- **Login / Create account** — email + password
+- **Forgot password?** — Firebase emails a reset link to that address
 - **Continue with Google** / **Continue as guest**
 
 ```
@@ -40,7 +38,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-Without env vars the game still runs with **local** accounts on the device (forgot-password demo OTP `123456`).
+Without env vars the game still runs with **local** accounts on the device.
 
 Cloud doc: `users/{uid}` → shop, progress, settings, lastScore
 
