@@ -312,10 +312,6 @@ body.menu-open canvas {
   opacity: 0.8;
 }
 
-#recaptcha-container {
-  min-height: 0;
-}
-
 .auth-divider {
   display: flex;
   align-items: center;
