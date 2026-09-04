@@ -921,12 +921,26 @@ function openAuth(message = "") {
   });
   const submit = document.querySelector("#btnAuthSubmit .btn-main");
   if (submit) submit.textContent = "LOGIN";
+  const phoneField = document.getElementById("authPhoneField");
+  if (phoneField) phoneField.hidden = true;
+  const form = document.getElementById("authForm");
+  if (form) form.hidden = false;
+  const forgotOpen = document.getElementById("btnForgotOpen");
+  if (forgotOpen) forgotOpen.hidden = false;
+  const forgotPanel = document.getElementById("authForgotPanel");
+  if (forgotPanel) forgotPanel.hidden = true;
+  const linkPanel = document.getElementById("authPhoneOtpPanel");
+  if (linkPanel) linkPanel.hidden = true;
+  const tabs = document.querySelector(".auth-tabs");
+  if (tabs) tabs.hidden = false;
   const msg = document.getElementById("authMsg");
   if (msg) msg.textContent = message;
   const userInput = document.getElementById("authUsername");
   const passInput = document.getElementById("authPassword");
+  const phoneInput = document.getElementById("authPhone");
   if (userInput) userInput.value = "";
   if (passInput) passInput.value = "";
+  if (phoneInput) phoneInput.value = "";
   showScreen("auth");
 }
 
@@ -1933,50 +1947,106 @@ document.getElementById("btnGoMenu").onclick = goHome;
 document.getElementById("btnLevelContinue").onclick = continueAfterLevel;
 document.getElementById("btnLevelMenu").onclick = goHome;
 
+const AUTH_REASONS = {
+  username: "Username must be at least 3 letters/numbers.",
+  password: "Password must be at least 6 characters.",
+  credentials: "Wrong username or password. Use the same name you registered with.",
+  exists: "That username is already taken.",
+  missing: "Account not found. Create an account first, or check the username.",
+  phone: "Enter a valid mobile number with country code (e.g. +1...).",
+  otp: "Invalid or expired SMS code. Request a new one.",
+  "phone-in-use": "That mobile number is already linked to another account.",
+  "phone-not-linked":
+    "This number is not linked to a password account. Create an account and verify mobile first.",
+  "firebase-not-started":
+    "Open Firebase Console → Authentication → Get started, then enable Email/Password.",
+  "firebase-disabled":
+    "Enable Email/Password, Phone, and Anonymous in Firebase → Authentication → Sign-in method.",
+  network: "Network error talking to Firebase.",
+  domain:
+    "Add this site’s domain in Firebase → Authentication → Authorized domains.",
+  rate: "Too many tries. Wait a minute and retry.",
+  "popup-closed": "Google sign-in was cancelled.",
+  "popup-blocked": "Allow popups for this site to use Google sign-in.",
+  "account-exists":
+    "That Google email already has an account with a different sign-in method.",
+  firebase: "Firebase auth failed. Check sign-in providers are enabled.",
+};
+
+function authFailureMessage(res, fallback) {
+  const base = AUTH_REASONS[res.reason] || fallback;
+  if (res.detail && !AUTH_REASONS[res.reason]) return `${base} (${res.detail})`;
+  return base;
+}
+
+function setAuthMode(mode) {
+  authTab = mode;
+  document.querySelectorAll(".auth-tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.authTab === authTab);
+  });
+  const submit = document.querySelector("#btnAuthSubmit .btn-main");
+  if (submit) submit.textContent = authTab === "register" ? "CREATE ACCOUNT" : "LOGIN";
+  const phoneField = document.getElementById("authPhoneField");
+  if (phoneField) phoneField.hidden = authTab !== "register";
+  document.getElementById("authMsg").textContent = "";
+}
+
+function showAuthMain() {
+  document.getElementById("authForm").hidden = false;
+  document.getElementById("btnForgotOpen").hidden = false;
+  document.getElementById("authForgotPanel").hidden = true;
+  document.getElementById("authPhoneOtpPanel").hidden = true;
+  document.querySelector(".auth-tabs").hidden = false;
+}
+
+function showForgotPanel() {
+  document.getElementById("authForm").hidden = true;
+  document.getElementById("btnForgotOpen").hidden = true;
+  document.getElementById("authForgotPanel").hidden = false;
+  document.getElementById("authPhoneOtpPanel").hidden = true;
+  document.querySelector(".auth-tabs").hidden = true;
+  document.getElementById("forgotOtpField").hidden = true;
+  document.getElementById("forgotPassField").hidden = true;
+  document.getElementById("btnForgotReset").hidden = true;
+  document.getElementById("btnForgotSend").hidden = false;
+  document.getElementById("forgotMsg").textContent = "";
+  document.getElementById("forgotOtp").value = "";
+  document.getElementById("forgotPassword").value = "";
+}
+
+function showPhoneLinkPanel() {
+  document.getElementById("authForm").hidden = true;
+  document.getElementById("btnForgotOpen").hidden = true;
+  document.getElementById("authForgotPanel").hidden = true;
+  document.getElementById("authPhoneOtpPanel").hidden = false;
+  document.querySelector(".auth-tabs").hidden = true;
+  document.getElementById("linkPhoneMsg").textContent =
+    "Enter the SMS code sent to your mobile.";
+  document.getElementById("linkPhoneOtp").value = "";
+}
+
 document.querySelectorAll(".auth-tab").forEach((btn) => {
-  btn.onclick = () => {
-    authTab = btn.dataset.authTab;
-    document.querySelectorAll(".auth-tab").forEach((t) => {
-      t.classList.toggle("active", t.dataset.authTab === authTab);
-    });
-    const submit = document.querySelector("#btnAuthSubmit .btn-main");
-    if (submit) submit.textContent = authTab === "register" ? "CREATE ACCOUNT" : "LOGIN";
-    document.getElementById("authMsg").textContent = "";
-  };
+  btn.onclick = () => setAuthMode(btn.dataset.authTab);
 });
 
 document.getElementById("authForm").onsubmit = async (e) => {
   e.preventDefault();
   const username = document.getElementById("authUsername").value;
   const password = document.getElementById("authPassword").value;
+  const phone = document.getElementById("authPhone")?.value || "";
   const msg = document.getElementById("authMsg");
-  const reasons = {
-    username: "Username must be at least 3 letters/numbers.",
-    password: "Password must be at least 6 characters.",
-    exists: "That username is already taken.",
-    missing: "Account not found.",
-    "firebase-not-started":
-      "Open Firebase Console → Authentication → Get started, then enable Email/Password.",
-    "firebase-disabled":
-      "Enable Email/Password (and Anonymous) in Firebase → Authentication → Sign-in method.",
-    network: "Network error talking to Firebase.",
-    domain:
-      "Add this site’s domain (and 127.0.0.1 if local) in Firebase → Authentication → Authorized domains.",
-    rate: "Too many tries. Wait a minute and retry.",
-    "popup-closed": "Google sign-in was cancelled.",
-    "popup-blocked": "Allow popups for this site to use Google sign-in.",
-    "account-exists":
-      "That Google email already has an account with a different sign-in method.",
-    firebase: "Firebase auth failed. Check Email/Password is enabled.",
-  };
+  msg.textContent = "";
   try {
     const res =
       authTab === "register"
-        ? await auth.register(username, password)
+        ? await auth.register(username, password, phone)
         : await auth.login(username, password);
     if (!res.ok) {
-      const base = reasons[res.reason] || "Could not continue.";
-      msg.textContent = res.detail ? `${base} (${res.detail})` : base;
+      msg.textContent = authFailureMessage(res, "Could not continue.");
+      return;
+    }
+    if (res.needsPhoneOtp) {
+      showPhoneLinkPanel();
       return;
     }
     resumeAudio();
@@ -1986,23 +2056,62 @@ document.getElementById("authForm").onsubmit = async (e) => {
   }
 };
 
-function authFailureMessage(res, fallback) {
-  const reasons = {
-    "firebase-not-started":
-      "Open Firebase Console → Authentication → Get started.",
-    "firebase-disabled":
-      "Enable the matching sign-in method in Firebase Authentication.",
-    domain:
-      "Add this site’s domain (and 127.0.0.1 if local) in Firebase → Authorized domains.",
-    "popup-closed": "Google sign-in was cancelled.",
-    "popup-blocked": "Allow popups for this site to use Google sign-in.",
-    "account-exists":
-      "That Google email already has an account with a different sign-in method.",
-    network: "Network error talking to Firebase.",
-  };
-  const base = reasons[res.reason] || fallback;
-  return res.detail && !reasons[res.reason] ? `${base} (${res.detail})` : base;
-}
+document.getElementById("btnForgotOpen").onclick = () => showForgotPanel();
+document.getElementById("btnForgotBack").onclick = () => {
+  showAuthMain();
+  setAuthMode("login");
+};
+
+document.getElementById("btnForgotSend").onclick = async () => {
+  const msg = document.getElementById("forgotMsg");
+  msg.textContent = "";
+  const phone = document.getElementById("forgotPhone").value;
+  const res = await auth.sendPasswordResetOtp(phone);
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Could not send SMS code.");
+    return;
+  }
+  document.getElementById("forgotOtpField").hidden = false;
+  document.getElementById("forgotPassField").hidden = false;
+  document.getElementById("btnForgotReset").hidden = false;
+  document.getElementById("btnForgotSend").hidden = true;
+  msg.textContent = res.localDemoOtp
+    ? `Local mode: use code ${res.localDemoOtp}`
+    : "Code sent. Enter SMS code and a new password.";
+  msg.classList.add("auth-msg-ok");
+};
+
+document.getElementById("btnForgotReset").onclick = async () => {
+  const msg = document.getElementById("forgotMsg");
+  msg.classList.remove("auth-msg-ok");
+  const code = document.getElementById("forgotOtp").value;
+  const password = document.getElementById("forgotPassword").value;
+  const res = await auth.confirmPasswordReset(code, password);
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Could not reset password.");
+    return;
+  }
+  resumeAudio();
+  await enterAppAfterAuth();
+};
+
+document.getElementById("btnLinkPhoneConfirm").onclick = async () => {
+  const msg = document.getElementById("linkPhoneMsg");
+  msg.classList.remove("auth-msg-ok");
+  const res = await auth.confirmPhoneLink(document.getElementById("linkPhoneOtp").value);
+  if (!res.ok) {
+    msg.textContent = authFailureMessage(res, "Could not verify mobile.");
+    return;
+  }
+  resumeAudio();
+  await enterAppAfterAuth();
+};
+
+document.getElementById("btnLinkPhoneSkip").onclick = async () => {
+  auth.skipPhoneLink();
+  resumeAudio();
+  await enterAppAfterAuth();
+};
 
 document.getElementById("btnAuthGoogle").onclick = async () => {
   const msg = document.getElementById("authMsg");

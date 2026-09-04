@@ -272,6 +272,50 @@ body.menu-open canvas {
   text-align: center;
 }
 
+.auth-msg.auth-msg-ok {
+  color: #8dffc0;
+}
+
+.auth-link {
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--theme-accent, #7bc8ff) 85%, #fff);
+  font-family: Orbitron, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.auth-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.auth-forgot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  text-align: left;
+}
+
+.auth-forgot-title {
+  margin: 0;
+  font-family: Orbitron, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  opacity: 0.8;
+}
+
+#recaptcha-container {
+  min-height: 0;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;
