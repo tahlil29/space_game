@@ -358,11 +358,11 @@ body.menu-open canvas {
 }
 
 .auth-lede {
-  margin: 6px 0 18px;
+  margin: 8px 0 20px;
   text-align: left;
   opacity: 0.65;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .auth-link-left {
@@ -577,14 +577,6 @@ body:not(.menu-open) .app-toast {
 
 .auth-msg.auth-msg-ok {
   color: #8dffc0;
-}
-
-.auth-lede {
-  margin: 8px 0 20px;
-  text-align: left;
-  opacity: 0.65;
-  font-size: 14px;
-  line-height: 1.45;
 }
 
 .auth-link {
