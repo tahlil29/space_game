@@ -25,7 +25,7 @@ import {
   starsHtml,
   levelStarsHtml,
 } from "./modes.js";
-import { getTheme, applyThemeToDom } from "./themes.js";
+import { getTheme, applyThemeToDom, drawSpaceBackground } from "./themes.js";
 import {
   progress,
   MAP_LEVEL_COUNT,
@@ -106,6 +106,8 @@ function setActiveMode(id) {
   currentTheme = getTheme(id);
   applyThemeToDom(currentTheme);
   setMusicProfile(id);
+  rebuildStars();
+  ambience = [];
 }
 
 function showScreen(name) {
@@ -200,6 +202,25 @@ function beginMissionFromMenu() {
   startGame(1);
 }
 
+function rebuildStars() {
+  const density = currentTheme.starDensity || 1;
+  const count = Math.max(40, Math.floor((W * H) / 6000 * density));
+  const tintPool =
+    currentTheme.id === "endless"
+      ? [currentTheme.star, "#e9d5ff", "#c084fc"]
+      : currentTheme.id === "boss"
+        ? [currentTheme.star, "#ffd6a5", "#ffb4a2"]
+        : [currentTheme.star, "#ffffff", "#cfe8ff"];
+  stars = Array.from({ length: count }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    r: Math.random() * (currentTheme.id === "endless" ? 2.1 : 1.5) + 0.2,
+    t: Math.random() * 6,
+    twinkle: 700 + Math.random() * 900,
+    col: tintPool[Math.floor(Math.random() * tintPool.length)],
+  }));
+}
+
 function resize() {
   dpr = Math.min(devicePixelRatio || 1, 2);
   W = innerWidth;
@@ -208,12 +229,7 @@ function resize() {
   canvas.height = H * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (!player) player = { x: W / 2, y: H / 2 };
-  stars = Array.from({ length: Math.floor((W * H) / 6000) }, () => ({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    r: Math.random() * 1.5 + 0.25,
-    t: Math.random() * 6,
-  }));
+  rebuildStars();
 }
 
 addEventListener("resize", resize);
@@ -963,21 +979,7 @@ function update(dt) {
 }
 
 function draw() {
-  const theme = currentTheme;
-  const grad = ctx.createRadialGradient(W * 0.5, H * 0.35, 40, W * 0.5, H * 0.5, Math.max(W, H) * 0.7);
-  grad.addColorStop(0, theme.bgMid);
-  grad.addColorStop(1, theme.bg);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  for (const s of stars) {
-    ctx.globalAlpha = 0.25 + 0.35 * Math.sin(s.t + performance.now() / 900);
-    ctx.fillStyle = theme.star;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, 7);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+  drawSpaceBackground(ctx, W, H, currentTheme, stars, performance.now());
 
   for (const p of ambience) {
     ctx.globalAlpha = Math.max(0, p.life * 0.55);
