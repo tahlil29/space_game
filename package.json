@@ -9,7 +9,8 @@
     "start": "node server.mjs",
     "preview": "vite preview --host localhost --port 43127",
     "qa": "node scripts/e2e-qa.mjs",
-    "qa:full": "node scripts/e2e-qa-full.mjs"
+    "qa:full": "node scripts/e2e-qa-full.mjs",
+    "qa:reset": "node scripts/e2e-otp-reset.mjs"
   },
   "engines": {
     "node": "20.x"

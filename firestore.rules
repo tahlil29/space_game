@@ -4,8 +4,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    // OTP hashes — create only; clients verify against localStorage primarily.
-    // Prefer locking this down further with App Check / Cloud Functions in production.
+
+    // OTP hashes for forgot-password (EmailJS code).
     match /passwordOtps/{emailKey} {
       allow create: if request.resource.data.keys().hasAll(['hash', 'expires', 'email'])
         && request.resource.data.email is string
@@ -13,6 +13,47 @@ service cloud.firestore {
       allow get: if true;
       allow delete: if true;
       allow list, update: if false;
+    }
+
+    // Written after client verifies OTP — proves possession of the code to rules.
+    match /otpUnlocks/{emailKey} {
+      allow create: if request.resource.data.keys().hasAll(['hash', 'email', 'expires'])
+        && request.resource.data.email is string
+        && request.resource.data.hash is string
+        && exists(/databases/$(database)/documents/passwordOtps/$(emailKey))
+        && get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.hash
+          == request.resource.data.hash
+        && get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.expires
+          > request.time.toMillis();
+      allow get, delete: if true;
+      allow list, update: if false;
+    }
+
+    // Email/password recovery secret. Readable only by the signed-in owner,
+    // or briefly after a valid OTP unlock (same security as knowing the OTP).
+    match /authSecrets/{emailKey} {
+      allow create, update: if request.auth != null
+        && request.auth.token.email is string
+        && request.resource.data.keys().hasAll(['email', 'authPassword', 'updatedAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.authPassword is string
+        && request.resource.data.authPassword.size() >= 6;
+      allow get: if (
+          request.auth != null
+          && request.auth.token.email is string
+          && resource.data.email == request.auth.token.email
+        ) || (
+          exists(/databases/$(database)/documents/otpUnlocks/$(emailKey))
+          && exists(/databases/$(database)/documents/passwordOtps/$(emailKey))
+          && get(/databases/$(database)/documents/otpUnlocks/$(emailKey)).data.hash
+            == get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.hash
+          && get(/databases/$(database)/documents/passwordOtps/$(emailKey)).data.expires
+            > request.time.toMillis()
+        );
+      allow delete: if request.auth != null
+        && request.auth.token.email is string
+        && resource.data.email == request.auth.token.email;
+      allow list: if false;
     }
   }
 }

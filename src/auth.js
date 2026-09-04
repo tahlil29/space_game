@@ -25,6 +25,7 @@ const AUTH_KEY = "space-survival-auth";
 const PENDING_RESET_KEY = "space-survival-pending-reset";
 const OTP_STORE_KEY = "space-survival-otp";
 const REFRESH_PREFIX = "space-survival-refresh:";
+const LOCAL_PW_PREFIX = "space-survival-pw:";
 const OTP_TTL_MS = 10 * 60 * 1000;
 const PENDING_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -123,6 +124,135 @@ function loadRefreshToken(email) {
     return localStorage.getItem(REFRESH_PREFIX + normalizeEmail(email)) || "";
   } catch {
     return "";
+  }
+}
+
+function saveLocalAuthPassword(email, password) {
+  try {
+    const mail = normalizeEmail(email);
+    if (mail && password) localStorage.setItem(LOCAL_PW_PREFIX + mail, password);
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadLocalAuthPassword(email) {
+  try {
+    return localStorage.getItem(LOCAL_PW_PREFIX + normalizeEmail(email)) || "";
+  } catch {
+    return "";
+  }
+}
+
+function clearLocalAuthPassword(email) {
+  try {
+    localStorage.removeItem(LOCAL_PW_PREFIX + normalizeEmail(email));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Persist email/password so OTP reset can sign in fresh and call updatePassword. */
+async function rememberAuthSecret(email, password) {
+  const mail = normalizeEmail(email);
+  if (!mail || !password || password.length < 6) return;
+  saveLocalAuthPassword(mail, password);
+  if (!isFirebaseConfigured()) return;
+  try {
+    const db = getFirebaseDb();
+    const fa = getFirebaseAuth();
+    if (!db || !fa?.currentUser) return;
+    await Promise.race([
+      setDoc(doc(db, "authSecrets", emailDocKey(mail)), {
+        email: mail,
+        authPassword: password,
+        updatedAt: Date.now(),
+      }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+    ]);
+  } catch (err) {
+    console.warn("authSecrets save skipped:", err?.message || err);
+  }
+}
+
+/**
+ * After OTP is verified: unlock → read stored password → fresh sign-in → updatePassword.
+ * Works without FIREBASE_SERVICE_ACCOUNT_JSON when a prior login saved authSecrets.
+ */
+async function updatePasswordViaStoredSecret(email, otpHash, newPassword) {
+  const mail = normalizeEmail(email);
+  const fa = getFirebaseAuth();
+  const db = getFirebaseDb();
+  if (!fa || !db) return { ok: false, reason: "missing-secret" };
+
+  const key = emailDocKey(mail);
+  const withTimeout = (p, ms) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+    ]);
+
+  // 1) Same-browser password from a previous login/register
+  let oldPassword = loadLocalAuthPassword(mail);
+
+  // 2) Cross-device: OTP-gated Firestore secret
+  if (!oldPassword) {
+    try {
+      await withTimeout(
+        setDoc(doc(db, "otpUnlocks", key), {
+          hash: otpHash,
+          email: mail,
+          expires: Date.now() + OTP_TTL_MS,
+        }),
+        4000,
+      );
+      const snap = await withTimeout(getDoc(doc(db, "authSecrets", key)), 4000);
+      if (snap.exists()) {
+        oldPassword = String(snap.data()?.authPassword || "");
+      }
+    } catch (err) {
+      console.warn("authSecrets read skipped:", err?.message || err);
+    }
+  }
+
+  if (!oldPassword || oldPassword.length < 6) {
+    return { ok: false, reason: "missing-secret" };
+  }
+
+  try {
+    const cred = await withTimeout(
+      signInWithEmailAndPassword(fa, mail, oldPassword),
+      10000,
+    );
+    await withTimeout(updatePassword(cred.user, newPassword), 10000);
+    saveRefreshToken(mail, cred.user);
+    await rememberAuthSecret(mail, newPassword);
+    try {
+      await signOut(fa);
+    } catch {
+      /* ignore */
+    }
+    try {
+      await Promise.all([
+        deleteDoc(doc(db, "passwordOtps", key)).catch(() => {}),
+        deleteDoc(doc(db, "otpUnlocks", key)).catch(() => {}),
+      ]);
+    } catch {
+      /* ignore */
+    }
+    return { ok: true };
+  } catch (err) {
+    console.warn("Stored-secret password update failed:", err?.code || err?.message || err);
+    try {
+      await signOut(fa);
+    } catch {
+      /* ignore */
+    }
+    return {
+      ok: false,
+      reason: mapFirebaseError(err?.code, err?.message),
+      detail: err?.code || err?.message || "",
+    };
   }
 }
 
@@ -469,6 +599,7 @@ export const auth = {
         const cred = await createUserWithEmailAndPassword(fa, mail, password);
         await updateProfile(cred.user, { displayName: display });
         saveRefreshToken(mail, cred.user);
+        await rememberAuthSecret(mail, password);
         this.applySession({
           userId: cred.user.uid,
           username: display,
@@ -515,6 +646,7 @@ export const auth = {
         const fa = getFirebaseAuth();
         const cred = await signInWithEmailAndPassword(fa, mail, password);
         saveRefreshToken(mail, cred.user);
+        await rememberAuthSecret(mail, password);
         const appliedPending = await applyPendingPasswordIfNeeded(mail, cred.user);
         this.applySession({
           userId: cred.user.uid,
@@ -535,7 +667,7 @@ export const auth = {
             ok: false,
             reason: "pending-reset",
             detail:
-              "That new password is not active yet. Open the reset link in your email, or log in once with your old password to activate it.",
+              "That new password is not active yet. Use Forgot password → OTP to set it, then log in.",
           };
         }
         return {
@@ -707,13 +839,22 @@ export const auth = {
     }
 
     if (isFirebaseConfigured()) {
-      // 1) Same-device refresh token (instant, no server)
+      // 1) Fresh sign-in with stored password (local or OTP-gated Firestore) → updatePassword
+      const viaSecret = await updatePasswordViaStoredSecret(mail, expectHash, newPassword);
+      if (viaSecret.ok) {
+        clearOtpRecord();
+        clearPendingReset();
+        return { ok: true, needLogin: true };
+      }
+
+      // 2) Same-device refresh token (may fail if Firebase requires recent login)
       const updated = await updateFirebasePasswordWithRefresh(mail, newPassword).catch(
         () => false,
       );
       if (updated) {
         clearOtpRecord();
         clearPendingReset();
+        saveLocalAuthPassword(mail, newPassword);
         try {
           const db = getFirebaseDb();
           if (db) {
@@ -728,7 +869,7 @@ export const auth = {
         return { ok: true, needLogin: true };
       }
 
-      // 2) Server Admin API — sets Firebase password from OTP (no email link)
+      // 3) Server Admin API — sets Firebase password from OTP (no email link)
       try {
         const apiRes = await Promise.race([
           fetch("/api/apply-otp-password", {
@@ -742,16 +883,22 @@ export const auth = {
         if (apiRes.ok && data?.ok) {
           clearOtpRecord();
           clearPendingReset();
+          saveLocalAuthPassword(mail, newPassword);
           return { ok: true, needLogin: true };
         }
         if (data?.reason === "otp") return { ok: false, reason: "otp", detail: data.detail };
         if (data?.reason === "missing") return { ok: false, reason: "missing" };
-        if (data?.reason === "admin-missing" || apiRes.status === 404 || apiRes.status === 502) {
+        if (
+          data?.reason === "admin-missing" ||
+          viaSecret.reason === "missing-secret" ||
+          apiRes.status === 404 ||
+          apiRes.status === 502
+        ) {
           return {
             ok: false,
             reason: "firebase",
             detail:
-              "Password reset server is not set up yet. Add FIREBASE_SERVICE_ACCOUNT_JSON on the host (see README), then try again.",
+              "Password update needs a one-time setup: add FIREBASE_SERVICE_ACCOUNT_JSON (README), or log in once with your current password so this device can recover next time.",
           };
         }
         return {
@@ -761,6 +908,14 @@ export const auth = {
         };
       } catch (err) {
         console.warn("Password reset API failed:", err?.message || err);
+        if (viaSecret.reason === "missing-secret") {
+          return {
+            ok: false,
+            reason: "firebase",
+            detail:
+              "Password update needs a one-time setup: add FIREBASE_SERVICE_ACCOUNT_JSON (README), or log in once with your current password so this device can recover next time.",
+          };
+        }
         return {
           ok: false,
           reason: "network",

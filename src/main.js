@@ -2056,7 +2056,7 @@ const AUTH_REASONS = {
   otp: "Invalid or expired code. Request a new one.",
   "need-password": "Enter a new password to finish reset.",
   "pending-reset":
-    "New password is not active yet. Open the email reset link, or log in once with your old password.",
+    "New password is not active yet. Use Forgot password with your email code, then log in.",
   "firebase-not-started": "Sign-in is not ready yet. Try again in a moment.",
   "firebase-disabled": "That sign-in method is not available right now.",
   network: "Network error. Check your connection and retry.",
