@@ -57,19 +57,28 @@ function normalizeUsername(name) {
 }
 
 function usernameToEmail(username) {
-  return `${normalizeUsername(username)}@spacesurvival.local`;
+  const user = normalizeUsername(username);
+  const projectId =
+    import.meta.env.VITE_FIREBASE_PROJECT_ID || "space-game-fc099";
+  // Firebase rejects .local — use the project auth domain style address
+  return `${user}@${projectId}.firebaseapp.com`;
 }
 
 function mapFirebaseError(code) {
   if (code === "auth/email-already-in-use") return "exists";
   if (code === "auth/invalid-email") return "username";
-  if (code === "auth/weak-password") return "password";
+  if (code === "auth/weak-password" || code === "auth/invalid-password") {
+    return "password";
+  }
   if (code === "auth/user-not-found") return "missing";
   if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
     return "password";
   }
   if (code === "auth/operation-not-allowed") return "firebase-disabled";
   if (code === "auth/network-request-failed") return "network";
+  if (code === "auth/unauthorized-domain") return "domain";
+  if (code === "auth/too-many-requests") return "rate";
+  if (code === "auth/admin-restricted-operation") return "firebase-disabled";
   return "firebase";
 }
 
@@ -147,7 +156,7 @@ export const auth = {
   async register(username, password) {
     const user = normalizeUsername(username);
     if (user.length < 3) return { ok: false, reason: "username" };
-    if (!password || password.length < 4) return { ok: false, reason: "password" };
+    if (!password || password.length < 6) return { ok: false, reason: "password" };
 
     if (isFirebaseConfigured()) {
       try {
@@ -166,7 +175,12 @@ export const auth = {
         });
         return { ok: true };
       } catch (err) {
-        return { ok: false, reason: mapFirebaseError(err.code) };
+        console.warn("Firebase register failed:", err?.code, err?.message);
+        return {
+          ok: false,
+          reason: mapFirebaseError(err?.code),
+          detail: err?.code || err?.message || "",
+        };
       }
     }
 

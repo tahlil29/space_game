@@ -1952,13 +1952,16 @@ document.getElementById("authForm").onsubmit = async (e) => {
   const msg = document.getElementById("authMsg");
   const reasons = {
     username: "Username must be at least 3 letters/numbers.",
-    password: "Password must be at least 4 characters.",
+    password: "Password must be at least 6 characters.",
     exists: "That username is already taken.",
     missing: "Account not found.",
     "firebase-disabled":
-      "Enable Email/Password (and Anonymous) in Firebase Authentication.",
+      "Enable Email/Password (and Anonymous) in Firebase → Authentication → Sign-in method.",
     network: "Network error talking to Firebase.",
-    firebase: "Firebase auth failed. Check your project config.",
+    domain:
+      "Add your Render domain in Firebase → Authentication → Settings → Authorized domains.",
+    rate: "Too many tries. Wait a minute and retry.",
+    firebase: "Firebase auth failed. Check Email/Password is enabled.",
   };
   try {
     const res =
@@ -1966,7 +1969,8 @@ document.getElementById("authForm").onsubmit = async (e) => {
         ? await auth.register(username, password)
         : await auth.login(username, password);
     if (!res.ok) {
-      msg.textContent = reasons[res.reason] || "Could not continue.";
+      const base = reasons[res.reason] || "Could not continue.";
+      msg.textContent = res.detail ? `${base} (${res.detail})` : base;
       return;
     }
     resumeAudio();
