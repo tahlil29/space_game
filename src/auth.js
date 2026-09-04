@@ -314,7 +314,7 @@ async function updateFirebasePasswordWithRefresh(email, newPassword) {
           }),
         },
       ),
-      6000,
+      8000,
     );
     const tokenData = await tokenRes.json();
     const idToken = tokenData.id_token || tokenData.idToken;
@@ -333,7 +333,7 @@ async function updateFirebasePasswordWithRefresh(email, newPassword) {
           }),
         },
       ),
-      6000,
+      8000,
     );
     const updateData = await updateRes.json();
     if (updateData.error) return false;
@@ -346,6 +346,62 @@ async function updateFirebasePasswordWithRefresh(email, newPassword) {
     return true;
   } catch (err) {
     console.warn("Password update via refresh failed:", err?.message || err);
+    return false;
+  }
+}
+
+/** Send Firebase password-reset link (oobCode). Tries with and without continue URL. */
+async function sendFirebaseResetLink(email) {
+  const fa = getFirebaseAuth();
+  const mail = normalizeEmail(email);
+  const withTimeout = (p, ms) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+    ]);
+
+  // Prefer default Firebase handler — custom continue URLs often fail on unauthorized domains
+  try {
+    await withTimeout(sendPasswordResetEmail(fa, mail), 10000);
+    return true;
+  } catch (err) {
+    console.warn("Firebase reset (default) failed:", err?.code || err?.message || err);
+  }
+  try {
+    await withTimeout(
+      sendPasswordResetEmail(fa, mail, {
+        url: `${window.location.origin}${window.location.pathname || "/"}`,
+        handleCodeInApp: false,
+      }),
+      10000,
+    );
+    return true;
+  } catch (err) {
+    console.warn("Firebase reset (continueUrl) failed:", err?.code || err?.message || err);
+  }
+  // REST fallback
+  const key = apiKey();
+  if (!key) return false;
+  try {
+    const res = await withTimeout(
+      fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestType: "PASSWORD_RESET", email: mail }),
+        },
+      ),
+      10000,
+    );
+    const data = await res.json();
+    if (data.error) {
+      console.warn("Firebase reset REST failed:", data.error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Firebase reset REST error:", err?.message || err);
     return false;
   }
 }
@@ -586,15 +642,9 @@ export const auth = {
         emailed = false;
         emailDetail = "timeout";
       }
-      // Firebase reset email is a LINK (not a 6-digit OTP). Keep as backup path.
+      // Optional Firebase reset link as backup (not the 6-digit OTP)
       try {
-        await withTimeout(
-          sendPasswordResetEmail(getFirebaseAuth(), mail, {
-            url: `${window.location.origin}${window.location.pathname}`,
-            handleCodeInApp: false,
-          }),
-          5000,
-        );
+        await withTimeout(sendFirebaseResetLink(mail), 8000);
       } catch (err) {
         console.warn("Firebase reset email:", err?.message || err);
       }
@@ -687,30 +737,24 @@ export const auth = {
         return { ok: true, needLogin: true };
       }
 
-      // No refresh token on this device — must use Firebase email reset link
+      // No prior login on this device — finish via Firebase reset link.
+      // Keep the new password pending so the email link can apply it.
       savePendingReset(mail, newPassword);
       clearOtpRecord();
-      try {
-        await Promise.race([
-          sendPasswordResetEmail(getFirebaseAuth(), mail, {
-            url: `${window.location.origin}${window.location.pathname}`,
-            handleCodeInApp: false,
-          }),
-          new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
-        ]);
-      } catch (err) {
-        clearPendingReset();
+      const linkSent = await sendFirebaseResetLink(mail);
+      if (linkSent) {
         return {
-          ok: false,
-          reason: mapFirebaseError(err?.code, err?.message) || "firebase",
-          detail:
-            "OTP ok, but password could not be changed on this device. Log in once first, or use the email reset link.",
+          ok: true,
+          needLogin: true,
+          openEmailLink: true,
         };
       }
+      // Link send failed, but password is still pending — user can request another link
       return {
-        ok: true,
-        needLogin: true,
-        openEmailLink: true,
+        ok: false,
+        reason: "firebase",
+        detail:
+          "Code verified. We could not email the final reset link — wait a minute and tap Set new password again, or check spam.",
       };
     }
 

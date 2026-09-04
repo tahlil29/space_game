@@ -138,7 +138,7 @@
       <div id="authViewForgot" class="auth-view app-panel" hidden>
         <h2 class="auth-heading">Reset password</h2>
         <p class="auth-lede" id="forgotLede">Enter your email to get a one-time code</p>
-        <div id="forgotStepEmail" class="auth-form">
+        <div id="forgotStepEmail" class="auth-form forgot-step">
           <label class="auth-field">
             <span>Email</span>
             <input id="forgotEmail" type="email" maxlength="120" placeholder="you@email.com" autocomplete="username" />
@@ -146,9 +146,10 @@
           <p class="auth-msg" id="forgotMsg"></p>
           <button id="btnForgotSend" class="btn btn-primary" type="button">Send code</button>
         </div>
-        <div id="forgotStepOtp" class="auth-form" hidden>
+        <div id="forgotStepOtp" class="auth-form forgot-step" hidden>
           <div id="otpBanner" class="otp-banner screen-hidden" aria-live="polite"></div>
-          <form id="forgotResetForm" class="auth-form">
+          <p class="auth-hint" id="forgotHint" hidden></p>
+          <form id="forgotResetForm" class="auth-form forgot-reset-form">
             <label class="auth-field">
               <span>Email code (OTP)</span>
               <input id="forgotOtp" type="text" inputmode="numeric" maxlength="64" placeholder="6-digit code" autocomplete="one-time-code" />
@@ -161,7 +162,7 @@
             <button id="btnForgotReset" class="btn btn-primary" type="submit">Set new password</button>
           </form>
         </div>
-        <button id="btnForgotBack" class="auth-link" type="button">← Back to login</button>
+        <button id="btnForgotBack" class="auth-link forgot-back" type="button">← Back to login</button>
       </div>
     </div>
   </div>

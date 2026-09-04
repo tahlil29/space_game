@@ -2099,6 +2099,12 @@ function openForgotView() {
   msg.textContent = "";
   msg.classList.remove("auth-msg-ok");
   document.getElementById("forgotOtpMsg").textContent = "";
+  document.getElementById("forgotOtpMsg").classList.remove("auth-msg-ok");
+  const hint = document.getElementById("forgotHint");
+  if (hint) {
+    hint.hidden = true;
+    hint.textContent = "";
+  }
   document.getElementById("forgotOtp").value = "";
   document.getElementById("forgotPassword").value = "";
   document.getElementById("otpBanner")?.classList.add("screen-hidden");
@@ -2224,34 +2230,41 @@ document.getElementById("btnForgotSend").onclick = async () => {
       "Enter the code and choose a new password";
     const banner = document.getElementById("otpBanner");
     const otpMsg = document.getElementById("forgotOtpMsg");
+    const hint = document.getElementById("forgotHint");
+    otpMsg.textContent = "";
+    otpMsg.classList.remove("auth-msg-ok");
     if (res.emailed && !res.demoOtp) {
       banner.classList.add("screen-hidden");
       document.getElementById("forgotOtp").value = "";
-      otpMsg.textContent =
-        "Check your email for the 6-digit code, then set a new password.";
-      otpMsg.classList.add("auth-msg-ok");
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = "Check your email for the 6-digit code, then set a new password.";
+      }
     } else if (res.demoOtp) {
-      // Fallback when EmailJS is missing or email send failed
       banner.textContent = `Your OTP code: ${res.demoOtp}`;
       banner.classList.remove("screen-hidden");
       document.getElementById("forgotOtp").value = res.demoOtp;
       const detail = String(res.emailDetail || "").slice(0, 120);
-      if (!isEmailOtpConfigured()) {
-        otpMsg.textContent =
-          "Email OTP is not set up yet (add EmailJS env vars). Use this on-screen code for now.";
-      } else if (/insufficient|scope|412|Invalid grant|reconnect/i.test(detail)) {
-        otpMsg.textContent =
-          "Gmail blocked EmailJS — reconnect Gmail in EmailJS and allow “Send email on your behalf”.";
-      } else if (detail) {
-        otpMsg.textContent = `Email send failed (${detail}). Use the on-screen code for now.`;
-      } else {
-        otpMsg.textContent = "Email send failed — use the on-screen code for now.";
+      if (hint) {
+        hint.hidden = false;
+        if (!isEmailOtpConfigured()) {
+          hint.textContent =
+            "Email OTP is not set up yet — use the on-screen code for now.";
+        } else if (/insufficient|scope|412|Invalid grant|reconnect/i.test(detail)) {
+          hint.textContent =
+            "Email delivery blocked — reconnect Gmail in EmailJS with send permission. Use the on-screen code for now.";
+        } else if (detail) {
+          hint.textContent = `Email send failed (${detail}). Use the on-screen code for now.`;
+        } else {
+          hint.textContent = "Email send failed — use the on-screen code for now.";
+        }
       }
-      otpMsg.classList.add("auth-msg-ok");
     } else {
       banner.classList.add("screen-hidden");
-      otpMsg.textContent = "Check your email for the code, then set a new password.";
-      otpMsg.classList.add("auth-msg-ok");
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = "Check your email for the code, then set a new password.";
+      }
     }
   } catch (err) {
     console.warn(err);
@@ -2265,7 +2278,10 @@ document.getElementById("btnForgotSend").onclick = async () => {
 document.getElementById("forgotResetForm").onsubmit = async (e) => {
   e.preventDefault();
   const msg = document.getElementById("forgotOtpMsg");
+  const hint = document.getElementById("forgotHint");
   msg.classList.remove("auth-msg-ok");
+  msg.textContent = "";
+  if (hint) hint.hidden = true;
   const email = document.getElementById("forgotEmail").value.trim();
   const otp = document.getElementById("forgotOtp").value;
   const password = document.getElementById("forgotPassword").value;
@@ -2273,7 +2289,12 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
   btn.disabled = true;
   btn.textContent = "Updating…";
   try {
-    const res = await auth.resetWithOtp(email, otp, password);
+    const res = await Promise.race([
+      auth.resetWithOtp(email, otp, password),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error("Password reset timed out")), 25000),
+      ),
+    ]);
     if (!res.ok) {
       msg.textContent = res.detail || authFailureMessage(res, "Could not reset password.");
       return;
@@ -2282,10 +2303,11 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
       showAuthView("login");
       const loginMsg = document.getElementById("loginMsg");
       loginMsg.textContent =
-        "Code verified. Open the reset link in your email to finish, then log in with the new password.";
+        "Code verified. Open the password-reset link in your email to finish, then log in.";
       loginMsg.classList.add("auth-msg-ok");
       document.getElementById("loginEmail").value = email;
-      showAppToast("Check your email to finish reset.");
+      document.getElementById("loginPassword").value = "";
+      showAppToast("Check your email for the final reset link.");
       return;
     }
     if (res.needLogin) {
@@ -2302,7 +2324,10 @@ document.getElementById("forgotResetForm").onsubmit = async (e) => {
     await enterAppAfterAuth({ welcome: "Password updated!" });
   } catch (err) {
     console.warn(err);
-    msg.textContent = "Could not reset password. Try again.";
+    msg.textContent =
+      err?.message?.includes("timed out")
+        ? "Still working — check your email for a reset link, or try again."
+        : "Could not reset password. Try again.";
   } finally {
     btn.disabled = false;
     btn.textContent = "Set new password";

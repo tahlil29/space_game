@@ -502,14 +502,43 @@ body:not(.menu-open) .app-toast {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   text-align: left;
+}
+
+.forgot-step {
+  gap: 16px;
+}
+
+.forgot-reset-form {
+  gap: 16px;
+  margin: 0;
+}
+
+.auth-hint {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 255, 184, 0.28);
+  background: rgba(12, 40, 28, 0.45);
+  color: #b6ffd4;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.auth-hint[hidden] {
+  display: none !important;
+}
+
+.forgot-back {
+  margin-top: 18px;
 }
 
 .auth-field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
   font-family: Orbitron, sans-serif;
   font-size: 10px;
   letter-spacing: 0.14em;
@@ -535,10 +564,11 @@ body:not(.menu-open) .app-toast {
 .auth-msg {
   min-height: 0;
   margin: 0;
-  font-size: 12px;
-  line-height: 1.35;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1.45;
   color: #ff8aa4;
-  text-align: center;
+  text-align: left;
 }
 
 .auth-msg:empty {
@@ -547,6 +577,14 @@ body:not(.menu-open) .app-toast {
 
 .auth-msg.auth-msg-ok {
   color: #8dffc0;
+}
+
+.auth-lede {
+  margin: 8px 0 20px;
+  text-align: left;
+  opacity: 0.65;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .auth-link {
